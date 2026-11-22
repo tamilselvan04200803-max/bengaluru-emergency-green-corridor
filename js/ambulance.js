@@ -43,6 +43,49 @@
     WS_RECONNECT_INTERVAL_MS: 3000
   };
 
+  // Load routing module (Node.js/CommonJS compatibility)
+  let RoadGraph = null;
+  let RoutePlanner = null;
+  let SmartRoutingController = null;
+  let networkData = null;
+
+  function loadRoutingModule() {
+    if (RoadGraph && RoutePlanner && SmartRoutingController) {
+      return { RoadGraph, RoutePlanner, SmartRoutingController };
+    }
+    // Try to load from local file
+    try {
+      if (typeof require === 'function') {
+        const routing = require('./routing.js');
+        RoadGraph = routing.RoadGraph;
+        RoutePlanner = routing.RoutePlanner;
+        SmartRoutingController = routing.SmartRoutingController;
+      }
+    } catch (e) {
+      // Check global (browser with script tags)
+      if (typeof root !== 'undefined' && root.RoadGraph) {
+        RoadGraph = root.RoadGraph;
+        RoutePlanner = root.RoutePlanner;
+        SmartRoutingController = root.SmartRoutingController;
+      }
+    }
+    return { RoadGraph, RoutePlanner, SmartRoutingController };
+  }
+
+  function loadNetworkData() {
+    if (networkData) return networkData;
+    try {
+      if (typeof require === 'function') {
+        networkData = require('./Data/GeoJSON/bengaluru_network.json');
+      } else if (typeof NETWORK_DATA !== 'undefined') {
+        networkData = NETWORK_DATA;
+      }
+    } catch (e) {
+      console.warn('Could not load network data');
+    }
+    return networkData;
+  }
+
   class AmbulanceManager {
     /**
      * @param {THREE.Scene} scene - Three.js scene graph
@@ -81,7 +124,7 @@
       // Active Telemetry / Corridor State
       this.vehicleId = 'AMB-108-01';
       this.criticalityTier = 1;
-      this.destinationHospital = 'hosp_victoria_01';
+      this.destinationHospital = options.destinationHospital || 'hosp_victoria_01';
       this.activeRouteJunctions = [
         'signal_majestic_cross',
         'signal_sheshadri_junction',
@@ -92,6 +135,13 @@
         'signal_kr_market',
         'signal_victoria_hospital_gate'
       ];
+
+      // Smart Routing Integration (Stage 2)
+      this.smartRouting = null;
+      this.routeRenderer = null;
+      this.currentRouteInfo = null;
+      this.simulationTime = 0;
+      this.initSmartRouting();
 
       // Autonomous Waypoints Engine
       this.waypoints = [];
@@ -211,6 +261,145 @@
           this.headingRad = (this.headingDeg * Math.PI) / 180.0;
         }
       }
+    }
+
+    /**
+     * Initializes Smart Routing Controller (Stage 2).
+     */
+    initSmartRouting() {
+      const routing = loadRoutingModule();
+      const netData = loadNetworkData();
+
+      if (!routing.RoadGraph || !routing.RoutePlanner || !routing.SmartRoutingController || !netData) {
+        console.warn('Smart Routing: Required modules or data not available');
+        return;
+      }
+
+      try {
+        const graph = new routing.RoadGraph(netData);
+        const planner = new routing.RoutePlanner(graph);
+        const controller = new routing.SmartRoutingController(planner, graph, this.signals, {
+          minRerouteSavingSec: 20.0,
+          minRerouteIntervalSec: 30.0,
+          hysteresisFactor: 1.15,
+          priorityHorizonM: 250.0,
+          priorityLeadTimeSec: 25.0,
+          congestionUpdateIntervalSec: 30.0
+        });
+
+        // Determine destination node based on hospital
+        let destinationNode = 'node_victoria_hospital_gate';
+        if (this.destinationHospital === 'hosp_stjohns_01') {
+          destinationNode = 'node_st_johns';
+        } else if (this.destinationHospital === 'hosp_bowring_01') {
+          destinationNode = 'node_bowring_hospital_gate';
+        } else if (this.destinationHospital === 'hosp_stmarthas_01') {
+          destinationNode = 'node_st_marthas';
+        } else if (this.destinationHospital === 'hosp_mallya_01') {
+          destinationNode = 'node_kasturba_cross';
+        } else if (this.destinationHospital === 'hosp_vanivilas_01') {
+          destinationNode = 'node_victoria_hospital_gate';
+        }
+
+        // Set initial position node
+        const startNode = this.findClosestNode(graph);
+        if (startNode) {
+          controller.setDestination(destinationNode);
+
+          // Initial route computation
+          const initialRoute = controller.computeRoute(startNode, destinationNode, { isPreempted: true });
+          if (initialRoute.path.length > 0) {
+            controller.currentRoute = initialRoute;
+            controller.currentRouteEdges = initialRoute.path;
+            controller.currentRouteTime = initialRoute.totalTime;
+            controller.lastRerouteTime = 0;
+          }
+        }
+
+        this.smartRouting = controller;
+
+        // Create route renderer
+        this.createRouteRenderer(graph);
+      } catch (e) {
+        console.error('Smart Routing initialization failed:', e);
+      }
+    }
+
+    /**
+     * Finds the closest graph node to the ambulance's current position.
+     */
+    findClosestNode(graph) {
+      if (!graph || graph.nodes.size === 0) return null;
+
+      let closestNode = null;
+      let minDist = Infinity;
+
+      for (const [nodeId, node] of graph.nodes) {
+        if (node.worldPos) {
+          const dx = node.worldPos.x - this.position.x;
+          const dz = node.worldPos.z - this.position.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist < minDist) {
+            minDist = dist;
+            closestNode = nodeId;
+          }
+        }
+      }
+
+      return closestNode;
+    }
+
+    /**
+     * Creates a Three.js line renderer for visualizing the current route.
+     */
+    createRouteRenderer(graph) {
+      if (typeof THREE === 'undefined' || !this.scene) return;
+
+      const material = new THREE.LineBasicMaterial({
+        color: 0x00ff88,
+        opacity: 0.8,
+        transparent: true,
+        linewidth: 3
+      });
+
+      this.routeRenderer = {
+        mesh: null,
+        material: material,
+        update: (routeEdges) => {
+          if (!routeEdges || routeEdges.length === 0) return;
+
+          const points = [];
+          for (const edgeId of routeEdges) {
+            const edge = graph.getEdge(edgeId);
+            if (edge && edge.geometry && edge.geometry.coordinates) {
+              edge.geometry.coordinates.forEach(coord => {
+                const pt = this.projection.latLonAltToCartesian(coord[1], coord[0], coord[2]);
+                points.push(new THREE.Vector3(pt.x, pt.y + 0.5, pt.z));
+              });
+            }
+          }
+
+          if (points.length < 2) return;
+
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+          if (this.routeRenderer.mesh) {
+            this.scene.remove(this.routeRenderer.mesh);
+            this.routeRenderer.mesh.geometry.dispose();
+          }
+
+          this.routeRenderer.mesh = new THREE.Line(geometry, material);
+          this.routeRenderer.mesh.name = 'RouteRenderer';
+          this.scene.add(this.routeRenderer.mesh);
+        },
+        clear: () => {
+          if (this.routeRenderer.mesh) {
+            this.scene.remove(this.routeRenderer.mesh);
+            this.routeRenderer.mesh.geometry.dispose();
+            this.routeRenderer.mesh = null;
+          }
+        }
+      };
     }
 
     /**
@@ -644,6 +833,53 @@
     }
 
     /**
+     * Updates smart routing controller with current ambulance state.
+     */
+    updateSmartRouting(dt) {
+      // Determine current graph node
+      const currentNode = this.smartRouting.findCurrentNode({
+        currentNode: this.currentNode || null,
+        speedKmh: this.speedKmh,
+        position: this.position
+      });
+
+      // Update routing controller
+      const ambulanceState = {
+        currentNode: currentNode,
+        speedKmh: this.speedKmh,
+        position: this.position
+      };
+
+      const result = this.smartRouting.update(ambulanceState, dt, this.simulationTime);
+
+      // Update route info
+      if (result.currentRoute) {
+        this.currentRouteInfo = {
+          edges: result.currentRoute.path,
+          totalTime: result.currentRoute.totalTime,
+          distance: result.currentRoute.distance,
+          reroute: result.reroute,
+          newRoute: result.newRoute,
+          priorityRequests: result.priorityRequests,
+          log: result.log
+        };
+
+        // Update route renderer
+        if (this.routeRenderer && result.currentRoute.path) {
+          this.routeRenderer.update(result.currentRoute.path);
+        }
+
+        // Update active route junctions for signal preemption
+        this.activeRouteJunctions = result.priorityRequests.map(req => req.junctionId);
+
+        // Log routing decisions
+        if (result.log && result.log.length > 0) {
+          console.log('[SmartRouting]', ...result.log);
+        }
+      }
+    }
+
+    /**
      * Manual WASD driving physics integration.
      */
     updateManualDriving(dt) {
@@ -822,6 +1058,8 @@
      * @param {number} dt - Frame delta time in seconds
      */
     update(dt = 0.016) {
+      this.simulationTime += dt;
+
       // 1. Navigation / Driving Physics
       if (this.isManual) {
         this.updateManualDriving(dt);
@@ -829,6 +1067,11 @@
         if (!this.isWsConnected) {
           this.updateInternalSimulation(dt);
         }
+      }
+
+      // 2. Smart Routing Update (Stage 2)
+      if (this.smartRouting) {
+        this.updateSmartRouting(dt);
       }
 
       // 2. Synchronize Three.js 3D transforms
@@ -941,6 +1184,39 @@
 
     getActiveRouteJunctions() {
       return this.activeRouteJunctions;
+    }
+
+    /**
+     * Returns current route information for UI/display
+     */
+    getCurrentRouteInfo() {
+      return this.currentRouteInfo;
+    }
+
+    /**
+     * Sets the destination hospital and recomputes route
+     */
+    setDestinationHospital(hospitalId) {
+      this.destinationHospital = hospitalId;
+      if (this.smartRouting) {
+        let destinationNode = 'node_victoria_hospital_gate';
+        if (hospitalId === 'hosp_stjohns_01') {
+          destinationNode = 'node_st_johns';
+        } else if (hospitalId === 'hosp_bowring_01') {
+          destinationNode = 'node_bowring_hospital_gate';
+        } else if (hospitalId === 'hosp_stmarthas_01') {
+          destinationNode = 'node_st_marthas';
+        } else if (hospitalId === 'hosp_mallya_01') {
+          destinationNode = 'node_kasturba_cross';
+        } else if (hospitalId === 'hosp_vanivilas_01') {
+          destinationNode = 'node_victoria_hospital_gate';
+        }
+
+        const startNode = this.findClosestNode(this.smartRouting.graph);
+        if (startNode) {
+          this.smartRouting.setDestination(destinationNode);
+        }
+      }
     }
   }
 

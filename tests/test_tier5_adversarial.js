@@ -855,10 +855,17 @@ runAdversarialTest('T5.6.4', 'Sequential Signal Passage & 3.0s Amber Safety Tran
 
     const targetPos = { x: krSignal.worldPos.x, y: 0, z: krSignal.worldPos.z };
 
-    // 1. Approach within 100m at 40 km/h -> should preempt to PRIORITY_GREEN
+    // 1. Approach within 100m at 40 km/h -> queues a preemption request.
+    // The request must traverse all-red clearance before priority green is shown;
+    // it must never instant-snap while conflicting traffic may still be clearing.
     sm.updatePreemption({ x: targetPos.x, y: 0, z: targetPos.z + 80.0 }, 40.0);
-    Assert.assertTrue(krSignal.isPreempted, 'Signal must preempt to PRIORITY_GREEN upon approach');
-    Assert.assertEqual(krSignal.currentState, 'PRIORITY_GREEN', 'State must be PRIORITY_GREEN');
+    Assert.assertTrue(krSignal.isPreempted, 'Signal must accept preemption upon approach');
+    Assert.assert(krSignal.currentState !== 'PRIORITY_GREEN',
+      'Signal must not instant-snap to green while still in its regular phase');
+
+    // Advance past the 2.0s all-red inter-green: the priority green is then shown.
+    krSignal.update(2.2);
+    Assert.assertEqual(krSignal.currentState, 'PRIORITY_GREEN', 'State must be PRIORITY_GREEN after safe transition');
 
     // 2. Pass junction (>30m past horizon threshold -> 300m + 30m = 330m)
     sm.updatePreemption({ x: targetPos.x, y: 0, z: targetPos.z + 350.0 }, 40.0);

@@ -183,7 +183,7 @@ test('SignalManager: All 15 ITMS signals instantiated from GeoJSON', () => {
   });
 });
 
-test('SignalManager: Early Preemption activates PRIORITY_GREEN within horizon', () => {
+test('SignalManager: Early Preemption activates safe transition within horizon', () => {
   const signalMgr = new SignalManager(null, proj);
   const krCircle = signalMgr.getSignal('signal_kr_circle');
   assert(krCircle, 'K.R. Circle signal must exist');
@@ -197,15 +197,20 @@ test('SignalManager: Early Preemption activates PRIORITY_GREEN within horizon', 
   };
 
   signalMgr.updatePreemption(ambPos, 54.0, ['signal_kr_circle']);
+  // Preemption is queued; safe transition will complete after AMBER + ALL_RED
+  // Advance dt to complete the transition (3s amber + 2s all-red)
+  signalMgr.update(5.5); // enough for amber + all-red
   assert(krCircle.isPreempted === true, 'K.R. Circle must be preempted');
-  assert(krCircle.currentState === 'PRIORITY_GREEN', 'State must be PRIORITY_GREEN');
+  assert(krCircle.currentPhase === 'PREEMPT_GREEN', 'State must be PREEMPT_GREEN after safe transition');
   assert(signalMgr.getPreemptedCount() === 1, 'Preempted count must be 1');
 
   // Move ambulance 400m away (beyond horizon + margin)
   ambPos.x = krCircle.worldPos.x + 400.0;
   signalMgr.updatePreemption(ambPos, 54.0, ['signal_kr_circle']);
+  // Post-passage AMBER safety phase (3.0s)
+  signalMgr.update(3.5);
   assert(krCircle.isPreempted === false, 'K.R. Circle preemption should be released');
-  assert(krCircle.currentState === 'AMBER', 'State should enter AMBER safety phase');
+  assert(krCircle.currentState === 'AMBER' || krCircle.currentState === 'RED', 'State should enter AMBER then RED safety phase');
 });
 
 // ----------------------------------------------------------------------------
