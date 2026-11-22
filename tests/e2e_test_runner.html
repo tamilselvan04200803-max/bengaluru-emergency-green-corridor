@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bengaluru Emergency Green Corridor — 4-Tier E2E Test Harness</title>
+  <style>
+    :root {
+      --bg-primary: #0a0f1d;
+      --bg-card: rgba(16, 24, 48, 0.85);
+      --bg-card-hover: rgba(24, 36, 70, 0.95);
+      --border-color: rgba(56, 189, 248, 0.2);
+      --border-glow: rgba(56, 189, 248, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-primary);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #0284c7, #10b981);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: #0284c7;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+      box-shadow: 0 0 16px rgba(2, 132, 199, 0.6);
+    }
+    .btn-secondary {
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--text-main);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .btn-secondary:hover {
+      background: rgba(51, 65, 85, 0.8);
+      border-color: var(--accent-cyan);
+    }
+
+    main {
+      flex: 1;
+      padding: 24px 28px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Stats Overview Card */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .stat-pass { color: var(--accent-emerald); }
+    .stat-fail { color: var(--accent-rose); }
+    .stat-rate { color: var(--accent-cyan); }
+    .stat-time { color: var(--text-main); }
+
+    /* Filters Bar */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+    .tier-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tier-tab {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .tier-tab.active {
+      background: var(--accent-cyan);
+      color: #0f172a;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+    .search-box {
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      min-width: 240px;
+    }
+    .search-box:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+
+    /* Test Cases Table */
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .test-item {
+      background: var(--bg-card);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: 8px;
+      padding: 12px 18px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .test-item:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-glow);
+    }
+    .test-item.failed {
+      border-left: 4px solid var(--accent-rose);
+      background: rgba(244, 63, 94, 0.05);
+    }
+    .test-item.passed {
+      border-left: 4px solid var(--accent-emerald);
+    }
+
+    .test-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .test-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+    .test-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      min-width: 65px;
+      text-align: center;
+    }
+    .test-tier-tag {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+    .test-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .test-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-pass {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-fail {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .test-duration {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      min-width: 50px;
+      text-align: right;
+    }
+
+    .test-details {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .test-error-box {
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 6px;
+      color: #fda4af;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    footer {
+      background: rgba(15, 23, 42, 0.95);
+      border-top: 1px solid var(--border-color);
+      padding: 14px 28px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Bengaluru Emergency Green Corridor Digital Twin</div>
+        <div class="brand-subtitle">4-Tier E2E Test Suite Runner — Automated Verification Harness</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn btn-primary" id="btn-run-all">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Run All Tests
+      </button>
+      <button class="btn btn-secondary" id="btn-export-json">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Export JSON Report
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Test Cases</div>
+        <div class="stat-value" id="stat-total">61</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tests Passed</div>
+        <div class="stat-value stat-pass" id="stat-passed">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tests Failed</div>
+        <div class="stat-value stat-fail" id="stat-failed">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pass Rate</div>
+        <div class="stat-value stat-rate" id="stat-rate">0.0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Execution Duration</div>
+        <div class="stat-value stat-time" id="stat-time">0 ms</div>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="filter-bar">
+      <div class="tier-tabs">
+        <button class="tier-tab active" data-filter="all">All Tiers (61)</button>
+        <button class="tier-tab" data-filter="1">Tier 1: Feature Coverage (25)</button>
+        <button class="tier-tab" data-filter="2">Tier 2: Boundary & Corner (21)</button>
+        <button class="tier-tab" data-filter="3">Tier 3: Cross-Feature (10)</button>
+        <button class="tier-tab" data-filter="4">Tier 4: Real-World Scenarios (5)</button>
+        <button class="tier-tab" data-filter="failures" style="color: var(--accent-rose);">Failures Only (<span id="tab-fail-count">0</span>)</button>
+      </div>
+      <input type="text" class="search-box" id="search-input" placeholder="Search tests by ID or keyword...">
+    </div>
+
+    <!-- Tests List Container -->
+    <div class="test-list" id="test-list-container">
+      <!-- Injected via JavaScript -->
+    </div>
+  </main>
+
+  <footer>
+    Bengaluru Emergency Green Corridor Digital Twin • E2E Test Suite • Zero-Build Three.js Specification Verification
+  </footer>
+
+  <!-- Include Test Suite Definition -->
+  <script src="test_suite.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      let currentFilter = 'all';
+      let searchQuery = '';
+      let lastReport = null;
+
+      const btnRunAll = document.getElementById('btn-run-all');
+      const btnExport = document.getElementById('btn-export-json');
+      const filterTabs = document.querySelectorAll('.tier-tab');
+      const searchInput = document.getElementById('search-input');
+      const listContainer = document.getElementById('test-list-container');
+
+      function executeTests() {
+        if (!window.BengaluruTestSuite) {
+          listContainer.innerHTML = '<div style="color: #f43f5e; padding: 20px;">Error: test_suite.js not loaded.</div>';
+          return;
+        }
+
+        lastReport = window.BengaluruTestSuite.runAll();
+
+        // Update Stats
+        document.getElementById('stat-total').textContent = lastReport.totalTests;
+        document.getElementById('stat-passed').textContent = lastReport.passedCount;
+        document.getElementById('stat-failed').textContent = lastReport.failedCount;
+        document.getElementById('stat-rate').textContent = `${lastReport.passRatePercent}%`;
+        document.getElementById('stat-time').textContent = `${lastReport.totalDurationMs} ms`;
+        document.getElementById('tab-fail-count').textContent = lastReport.failedCount;
+
+        renderTests();
+      }
+
+      function renderTests() {
+        if (!lastReport) return;
+
+        const filtered = lastReport.results.filter(r => {
+          // Tier filtering
+          if (currentFilter !== 'all') {
+            if (currentFilter === 'failures') {
+              if (r.passed) return false;
+            } else if (r.tier !== parseInt(currentFilter, 10)) {
+              return false;
+            }
+          }
+          // Search query
+          if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            return r.id.toLowerCase().includes(q) ||
+                   r.name.toLowerCase().includes(q) ||
+                   (r.description && r.description.toLowerCase().includes(q));
+          }
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          listContainer.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--text-muted);">No matching tests found.</div>';
+          return;
+        }
+
+        listContainer.innerHTML = filtered.map(r => `
+          <div class="test-item ${r.passed ? 'passed' : 'failed'}" onclick="this.classList.toggle('expanded')">
+            <div class="test-header-row">
+              <div class="test-meta">
+                <span class="test-id">${r.id}</span>
+                <span class="test-tier-tag">Tier ${r.tier}</span>
+                <span class="test-name">${r.name}</span>
+              </div>
+              <div class="test-status">
+                <span class="test-duration">${r.durationMs}ms</span>
+                <span class="${r.passed ? 'badge-pass' : 'badge-fail'}">${r.passed ? 'PASS' : 'FAIL'}</span>
+              </div>
+            </div>
+            <div class="test-details">
+              <div><strong>Specification:</strong> ${r.description}</div>
+              ${r.error ? `<div class="test-error-box"><strong>Failure:</strong> ${r.error}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Event Listeners
+      btnRunAll.addEventListener('click', executeTests);
+
+      filterTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          filterTabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentFilter = tab.dataset.filter;
+          renderTests();
+        });
+      });
+
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        renderTests();
+      });
+
+      btnExport.addEventListener('click', () => {
+        if (!lastReport) return;
+        const blob = new Blob([JSON.stringify(lastReport, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bengaluru_e2e_test_report_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      // Auto-run on load
+      executeTests();
+    });
+  </script>
+</body>
+</html>

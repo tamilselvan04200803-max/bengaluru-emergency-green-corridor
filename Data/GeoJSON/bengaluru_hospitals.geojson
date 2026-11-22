@@ -1,0 +1,156 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "project": "TrafficClearance",
+    "region": "Central Bengaluru Emergency Hubs",
+    "crs": "EPSG:4326",
+    "datum": "WGS84",
+    "count": 5
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "hosp_victoria_01",
+      "properties": {
+        "id": "hosp_victoria_01",
+        "name": "Victoria Hospital (BMCRI)",
+        "amenity": "hospital",
+        "emergency": "yes",
+        "trauma_center_level": "Level 1",
+        "bed_capacity": 1050,
+        "icu_capacity": 120,
+        "emergency_bays": 24,
+        "helipad": true,
+        "contact_phone": "+91-80-26701150",
+        "address": "Fort Road, near K.R. Market, Kalasipalya, Bengaluru, Karnataka 560002",
+        "nearest_junction_node": "node_victoria_hospital_gate",
+        "specialties": [
+          "Emergency Trauma & Resuscitation",
+          "Burn Care Center",
+          "Neurosurgery",
+          "Cardiothoracic Surgery",
+          "Critical Care"
+        ],
+        "ev_ingress_clearance_priority": "CRITICAL_TIER_1"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5746, 12.9628, 915.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hosp_bowring_01",
+      "properties": {
+        "id": "hosp_bowring_01",
+        "name": "Bowring and Lady Curzon Hospital",
+        "amenity": "hospital",
+        "emergency": "yes",
+        "trauma_center_level": "Level 1",
+        "bed_capacity": 686,
+        "icu_capacity": 64,
+        "emergency_bays": 16,
+        "helipad": false,
+        "contact_phone": "+91-80-25591325",
+        "address": "Hospital Road, Shivaji Nagar, Bengaluru, Karnataka 560001",
+        "nearest_junction_node": "node_bowring_hospital_gate",
+        "specialties": [
+          "Emergency Surgery",
+          "Pediatrics",
+          "Orthopedic Trauma",
+          "Intensive Care Unit"
+        ],
+        "ev_ingress_clearance_priority": "CRITICAL_TIER_1"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.6027, 12.9829, 923.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hosp_stmarthas_01",
+      "properties": {
+        "id": "hosp_stmarthas_01",
+        "name": "St. Martha's Hospital",
+        "amenity": "hospital",
+        "emergency": "yes",
+        "trauma_center_level": "Level 2",
+        "bed_capacity": 550,
+        "icu_capacity": 48,
+        "emergency_bays": 12,
+        "helipad": false,
+        "contact_phone": "+91-80-40128200",
+        "address": "Nrupathunga Road, Opposite Reserve Bank of India, Bengaluru, Karnataka 560001",
+        "nearest_junction_node": "node_st_marthas",
+        "specialties": [
+          "Cardiology Emergency",
+          "Trauma & Orthopedics",
+          "General Surgery",
+          "Dialysis & ICU"
+        ],
+        "ev_ingress_clearance_priority": "CRITICAL_TIER_1"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5873, 12.9702, 921.8]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hosp_mallya_01",
+      "properties": {
+        "id": "hosp_mallya_01",
+        "name": "Mallya Hospital (Vittal Mallya)",
+        "amenity": "hospital",
+        "emergency": "yes",
+        "trauma_center_level": "Level 2",
+        "bed_capacity": 220,
+        "icu_capacity": 32,
+        "emergency_bays": 8,
+        "helipad": false,
+        "contact_phone": "+91-80-22277979",
+        "address": "Vittal Mallya Road, Ashok Nagar, Bengaluru, Karnataka 560001",
+        "nearest_junction_node": "node_kasturba_cross",
+        "specialties": [
+          "Cardiac Emergencies",
+          "Neuro Trauma",
+          "Acute Medical Care"
+        ],
+        "ev_ingress_clearance_priority": "TIER_2"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5956, 12.9706, 923.1]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hosp_vanivilas_01",
+      "properties": {
+        "id": "hosp_vanivilas_01",
+        "name": "Vani Vilas Hospital",
+        "amenity": "hospital",
+        "emergency": "yes",
+        "trauma_center_level": "Level 2",
+        "bed_capacity": 536,
+        "icu_capacity": 40,
+        "emergency_bays": 10,
+        "helipad": false,
+        "contact_phone": "+91-80-26705777",
+        "address": "K.R. Road, Victoria Hospital Campus, Kalasipalya, Bengaluru, Karnataka 560002",
+        "nearest_junction_node": "node_victoria_hospital_gate",
+        "specialties": [
+          "Obstetric & Gynecological Emergency",
+          "Neonatal Intensive Care (NICU)",
+          "Pediatric Emergency"
+        ],
+        "ev_ingress_clearance_priority": "TIER_2"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5742, 12.9619, 914.5]
+      }
+    }
+  ]
+}

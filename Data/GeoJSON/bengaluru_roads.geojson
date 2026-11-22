@@ -1,0 +1,524 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "project": "TrafficClearance",
+    "region": "Central Bengaluru Emergency Vehicle Corridor",
+    "crs": "EPSG:4326",
+    "datum": "WGS84",
+    "corridor_landmarks": [
+      "Majestic (KSR / BMTC)",
+      "Victoria Hospital (BMCRI)",
+      "KR Market",
+      "Town Hall / Corporation Circle",
+      "Hudson Circle",
+      "KR Circle",
+      "Vidhana Soudha",
+      "Bowring Hospital",
+      "MG Road"
+    ],
+    "count": 19
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way_seshadri_01",
+      "properties": {
+        "id": "way_seshadri_01",
+        "name": "Seshadri Road (Majestic - Subedar Chatram)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 50,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_majestic",
+        "end_node": "node_sheshadri_junction",
+        "length_m": 780.5,
+        "elevation_m": 921.4,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5729, 12.9778, 922.0],
+          [77.5752, 12.9772, 921.8],
+          [77.5775, 12.9768, 921.6],
+          [77.5795, 12.9765, 921.2]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_seshadri_02",
+      "properties": {
+        "id": "way_seshadri_02",
+        "name": "Seshadri Road (Subedar Chatram - K.R. Circle)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 50,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_sheshadri_junction",
+        "end_node": "node_kr_circle",
+        "length_m": 845.0,
+        "elevation_m": 922.0,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5795, 12.9765, 921.2],
+          [77.5828, 12.9760, 921.9],
+          [77.5855, 12.9755, 922.3],
+          [77.5871, 12.9752, 922.5]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_kg_01",
+      "properties": {
+        "id": "way_kg_01",
+        "name": "Kempegowda Road (Majestic - Tribhuvan)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_majestic",
+        "end_node": "node_kg_road_mid",
+        "length_m": 660.0,
+        "elevation_m": 920.8,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5729, 12.9778, 922.0],
+          [77.5750, 12.9762, 921.2],
+          [77.5780, 12.9745, 920.8]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_kg_02",
+      "properties": {
+        "id": "way_kg_02",
+        "name": "Kempegowda Road (Tribhuvan - Mysore Bank Circle)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_kg_road_mid",
+        "end_node": "node_mysore_bank",
+        "length_m": 415.0,
+        "elevation_m": 921.0,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5780, 12.9745, 920.8],
+          [77.5800, 12.9740, 921.0],
+          [77.5815, 12.9735, 921.5]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_avenue_01",
+      "properties": {
+        "id": "way_avenue_01",
+        "name": "Avenue Road (Mysore Bank - K.R. Market)",
+        "highway": "secondary",
+        "lanes": 2,
+        "maxspeed": 30,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_mysore_bank",
+        "end_node": "node_kr_market_junction",
+        "length_m": 1050.0,
+        "elevation_m": 917.5,
+        "ev_priority_corridor": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5815, 12.9735, 921.5],
+          [77.5798, 12.9710, 919.8],
+          [77.5782, 12.9682, 918.4],
+          [77.5765, 12.9658, 916.5]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_nrupathunga_01",
+      "properties": {
+        "id": "way_nrupathunga_01",
+        "name": "Nrupathunga Road (K.R. Circle - St. Martha's Hospital)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 50,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_kr_circle",
+        "end_node": "node_st_marthas",
+        "length_m": 560.0,
+        "elevation_m": 922.0,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5871, 12.9752, 922.5],
+          [77.5872, 12.9728, 922.1],
+          [77.5873, 12.9702, 921.8]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_nrupathunga_02",
+      "properties": {
+        "id": "way_nrupathunga_02",
+        "name": "Nrupathunga Road (St. Martha's - Hudson Circle)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 50,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_st_marthas",
+        "end_node": "node_hudson_circle",
+        "length_m": 250.0,
+        "elevation_m": 921.2,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5873, 12.9702, 921.8],
+          [77.5874, 12.9691, 921.4],
+          [77.5875, 12.9680, 920.9]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_kasturba_hudson",
+      "properties": {
+        "id": "way_kasturba_hudson",
+        "name": "Kasturba Road (Hudson Circle - Mallya Hospital)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_hudson_circle",
+        "end_node": "node_kasturba_cross",
+        "length_m": 940.0,
+        "elevation_m": 922.5,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5875, 12.9680, 920.9],
+          [77.5910, 12.9692, 921.6],
+          [77.5956, 12.9706, 923.1]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_hudson_to_corp",
+      "properties": {
+        "id": "way_hudson_to_corp",
+        "name": "Devanga Market Road / Corporation Connector",
+        "highway": "primary",
+        "lanes": 6,
+        "maxspeed": 50,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_hudson_circle",
+        "end_node": "node_corporation_circle",
+        "length_m": 150.0,
+        "elevation_m": 920.2,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5875, 12.9680, 920.9],
+          [77.5873, 12.9673, 920.5],
+          [77.5872, 12.9667, 920.1]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_nr_road_01",
+      "properties": {
+        "id": "way_nr_road_01",
+        "name": "N.R. Road (Corporation Circle - K.R. Market Flyover)",
+        "highway": "trunk",
+        "lanes": 6,
+        "maxspeed": 50,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_corporation_circle",
+        "end_node": "node_kr_market_junction",
+        "length_m": 1180.0,
+        "elevation_m": 918.0,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5872, 12.9667, 920.1],
+          [77.5840, 12.9664, 919.2],
+          [77.5800, 12.9661, 917.9],
+          [77.5765, 12.9658, 916.5]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_fort_victoria_01",
+      "properties": {
+        "id": "way_fort_victoria_01",
+        "name": "K.R. Road / Fort Road (K.R. Market - Victoria Hospital Emergency)",
+        "highway": "trunk",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_kr_market_junction",
+        "end_node": "node_victoria_hospital_gate",
+        "length_m": 390.0,
+        "elevation_m": 915.2,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5765, 12.9658, 916.5],
+          [77.5755, 12.9642, 915.5],
+          [77.5746, 12.9628, 914.8]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_fort_victoria_02",
+      "properties": {
+        "id": "way_fort_victoria_02",
+        "name": "Fort Road (Victoria Hospital - Bangalore Fort)",
+        "highway": "trunk",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_victoria_hospital_gate",
+        "end_node": "node_fort_junction",
+        "length_m": 210.0,
+        "elevation_m": 914.2,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5746, 12.9628, 914.8],
+          [77.5742, 12.9619, 914.4],
+          [77.5740, 12.9610, 914.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_tipu_palace_01",
+      "properties": {
+        "id": "way_tipu_palace_01",
+        "name": "Albert Victor Road (Fort - Tipu Sultan Palace)",
+        "highway": "secondary",
+        "lanes": 2,
+        "maxspeed": 30,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_fort_junction",
+        "end_node": "node_tipu_palace",
+        "length_m": 205.0,
+        "elevation_m": 913.8,
+        "ev_priority_corridor": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5740, 12.9610, 914.0],
+          [77.5739, 12.9600, 913.8],
+          [77.5738, 12.9592, 913.5]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_ambedkar_01",
+      "properties": {
+        "id": "way_ambedkar_01",
+        "name": "Dr. B.R. Ambedkar Veedhi (K.R. Circle - Vidhana Soudha)",
+        "highway": "trunk",
+        "lanes": 6,
+        "maxspeed": 50,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_kr_circle",
+        "end_node": "node_vidhana_soudha",
+        "length_m": 620.0,
+        "elevation_m": 923.5,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5871, 12.9752, 922.5],
+          [77.5888, 12.9775, 923.2],
+          [77.5907, 12.9796, 924.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_raj_bhavan_01",
+      "properties": {
+        "id": "way_raj_bhavan_01",
+        "name": "Raj Bhavan Road (Vidhana Soudha - Raj Bhavan)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 50,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_vidhana_soudha",
+        "end_node": "node_raj_bhavan",
+        "length_m": 410.0,
+        "elevation_m": 925.0,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5907, 12.9796, 924.0],
+          [77.5914, 12.9815, 924.8],
+          [77.5920, 12.9830, 925.4]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_bowring_link_01",
+      "properties": {
+        "id": "way_bowring_link_01",
+        "name": "Lady Curzon Road (Raj Bhavan - Bowring Hospital)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_raj_bhavan",
+        "end_node": "node_bowring_hospital_gate",
+        "length_m": 1180.0,
+        "elevation_m": 923.2,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5920, 12.9830, 925.4],
+          [77.5960, 12.9832, 924.6],
+          [77.6000, 12.9830, 923.8],
+          [77.6027, 12.9829, 923.0]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_bowring_to_mg_01",
+      "properties": {
+        "id": "way_bowring_to_mg_01",
+        "name": "Central Street (Bowring Hospital - Anil Kumble Circle)",
+        "highway": "primary",
+        "lanes": 4,
+        "maxspeed": 40,
+        "oneway": true,
+        "surface": "asphalt",
+        "start_node": "node_bowring_hospital_gate",
+        "end_node": "node_anil_kumble_circle",
+        "length_m": 930.0,
+        "elevation_m": 922.5,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.6027, 12.9829, 923.0],
+          [77.6035, 12.9788, 922.6],
+          [77.6045, 12.9748, 922.2]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_mg_road_01",
+      "properties": {
+        "id": "way_mg_road_01",
+        "name": "Mahatma Gandhi Road (Kasturba Cross - Anil Kumble Circle)",
+        "highway": "trunk",
+        "lanes": 6,
+        "maxspeed": 50,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_kasturba_cross",
+        "end_node": "node_anil_kumble_circle",
+        "length_m": 1080.0,
+        "elevation_m": 922.8,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.5956, 12.9706, 923.1],
+          [77.5990, 12.9725, 922.7],
+          [77.6020, 12.9738, 922.4],
+          [77.6045, 12.9748, 922.2]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way_mg_road_02",
+      "properties": {
+        "id": "way_mg_road_02",
+        "name": "Mahatma Gandhi Road (Anil Kumble Circle - Trinity Circle)",
+        "highway": "trunk",
+        "lanes": 6,
+        "maxspeed": 50,
+        "oneway": false,
+        "surface": "asphalt",
+        "start_node": "node_anil_kumble_circle",
+        "end_node": "node_trinity_circle",
+        "length_m": 1540.0,
+        "elevation_m": 920.5,
+        "ev_priority_corridor": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.6045, 12.9748, 922.2],
+          [77.6095, 12.9742, 921.8],
+          [77.6140, 12.9735, 921.0],
+          [77.6185, 12.9727, 920.0]
+        ]
+      }
+    }
+  ]
+}

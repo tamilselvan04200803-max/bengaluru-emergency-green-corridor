@@ -1,0 +1,419 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "project": "TrafficClearance",
+    "region": "Central Bengaluru Smart Traffic Signals & Actuators",
+    "crs": "EPSG:4326",
+    "datum": "WGS84",
+    "count": 15
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "signal_majestic_cross",
+      "properties": {
+        "id": "signal_majestic_cross",
+        "name": "Majestic Station Terminal Junction",
+        "node_id": "node_majestic",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Seshadri Road",
+          "Kempegowda Road",
+          "Gubbi Thotadappa Road",
+          "Dhanvantri Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 35,
+        "cycle_time_seconds": 120,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "FORCE_PHASE_SESHADRI_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5729, 12.9778, 922.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_sheshadri_junction",
+      "properties": {
+        "id": "signal_sheshadri_junction",
+        "name": "Seshadri Road - Subedar Chatram Cross",
+        "node_id": "node_sheshadri_junction",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "3_way",
+        "controlled_roads": [
+          "Seshadri Road",
+          "Subedar Chatram Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 25,
+        "cycle_time_seconds": 90,
+        "priority_tier": "MAJOR",
+        "clearance_action": "FORCE_PHASE_SESHADRI_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5795, 12.9765, 921.2]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_kr_circle",
+      "properties": {
+        "id": "signal_kr_circle",
+        "name": "Sir M. Visvesvaraya (K.R.) Circle",
+        "node_id": "node_kr_circle",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "5_way_roundabout",
+        "controlled_roads": [
+          "Seshadri Road",
+          "Nrupathunga Road",
+          "Dr. B.R. Ambedkar Veedhi",
+          "Post Office Road",
+          "Palace Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 45,
+        "cycle_time_seconds": 150,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "ALL_RED_EXCEPT_CORRIDOR_ENTRY"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5871, 12.9752, 922.5]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_mysore_bank",
+      "properties": {
+        "id": "signal_mysore_bank",
+        "name": "Mysore Bank Circle / Avenue Road Junction",
+        "node_id": "node_mysore_bank",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Kempegowda Road",
+          "Avenue Road",
+          "Palace Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 30,
+        "cycle_time_seconds": 100,
+        "priority_tier": "MAJOR",
+        "clearance_action": "HOLD_AVENUE_ROAD_RED"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5815, 12.9735, 921.5]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_st_marthas",
+      "properties": {
+        "id": "signal_st_marthas",
+        "name": "St. Martha's Hospital Crossing (Nrupathunga Rd)",
+        "node_id": "node_st_marthas",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "3_way",
+        "controlled_roads": [
+          "Nrupathunga Road",
+          "St. Martha's Gate Approach"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 20,
+        "cycle_time_seconds": 75,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "FORCE_NRUPATHUNGA_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5873, 12.9702, 921.8]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_hudson_circle",
+      "properties": {
+        "id": "signal_hudson_circle",
+        "name": "Hudson Circle (Police Corner / Cubbon Park Gate)",
+        "node_id": "node_hudson_circle",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "5_way_roundabout",
+        "controlled_roads": [
+          "Nrupathunga Road",
+          "Kasturba Road",
+          "Corporation Road",
+          "Cubbon Park Internal Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 40,
+        "cycle_time_seconds": 140,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "GREEN_WAVE_TO_CORPORATION"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5875, 12.9680, 920.9]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_corporation_circle",
+      "properties": {
+        "id": "signal_corporation_circle",
+        "name": "Corporation Circle (Town Hall / NR Square)",
+        "node_id": "node_corporation_circle",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "N.R. Road",
+          "J.C. Road",
+          "Mission Road",
+          "Devanga Market Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 45,
+        "cycle_time_seconds": 150,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "PRIORITY_NR_ROAD_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5872, 12.9667, 920.1]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_kr_market",
+      "properties": {
+        "id": "signal_kr_market",
+        "name": "K.R. Market Flyover Junction",
+        "node_id": "node_kr_market_junction",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "N.R. Road",
+          "K.R. Road",
+          "Avenue Road",
+          "Mysore Road Flyover Ramp"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 35,
+        "cycle_time_seconds": 120,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "HOLD_MARKET_CROSSINGS_RED"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5765, 12.9658, 916.5]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_victoria_hospital_gate",
+      "properties": {
+        "id": "signal_victoria_hospital_gate",
+        "name": "Victoria Hospital Emergency Ingress Junction",
+        "node_id": "node_victoria_hospital_gate",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "3_way",
+        "controlled_roads": [
+          "K.R. Road",
+          "Fort Road",
+          "Victoria Emergency Ramp"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 20,
+        "cycle_time_seconds": 80,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "INSTANT_EMERGENCY_CORRIDOR_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5746, 12.9628, 914.8]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_fort_junction",
+      "properties": {
+        "id": "signal_fort_junction",
+        "name": "Bangalore Fort / Kalasipalya Junction",
+        "node_id": "node_fort_junction",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "3_way",
+        "controlled_roads": [
+          "Fort Road",
+          "Albert Victor Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 20,
+        "cycle_time_seconds": 70,
+        "priority_tier": "MAJOR",
+        "clearance_action": "HOLD_CROSS_TRAFFIC_RED"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5740, 12.9610, 914.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_vidhana_soudha",
+      "properties": {
+        "id": "signal_vidhana_soudha",
+        "name": "Dr. B.R. Ambedkar Veedhi - High Court Gate",
+        "node_id": "node_vidhana_soudha",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "3_way",
+        "controlled_roads": [
+          "Dr. B.R. Ambedkar Veedhi",
+          "Gopal Gowda Circle Cross"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 30,
+        "cycle_time_seconds": 100,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "CLEAR_MAIN_VEEDHI"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5907, 12.9796, 924.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_raj_bhavan",
+      "properties": {
+        "id": "signal_raj_bhavan",
+        "name": "Raj Bhavan Road / Ali Asker Road Junction",
+        "node_id": "node_raj_bhavan",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Raj Bhavan Road",
+          "Lady Curzon Road",
+          "Ali Asker Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 25,
+        "cycle_time_seconds": 90,
+        "priority_tier": "MAJOR",
+        "clearance_action": "PRIORITY_LADY_CURZON_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5920, 12.9830, 925.4]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_bowring_hospital",
+      "properties": {
+        "id": "signal_bowring_hospital",
+        "name": "Bowring Hospital / Shivaji Nagar Junction",
+        "node_id": "node_bowring_hospital_gate",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Lady Curzon Road",
+          "Central Street",
+          "Hospital Road"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 25,
+        "cycle_time_seconds": 90,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "INSTANT_EMERGENCY_CORRIDOR_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.6027, 12.9829, 923.0]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_kasturba_cross",
+      "properties": {
+        "id": "signal_kasturba_cross",
+        "name": "Kasturba Road / Vittal Mallya Junction",
+        "node_id": "node_kasturba_cross",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Kasturba Road",
+          "Vittal Mallya Road",
+          "Lavelle Road Approach"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 30,
+        "cycle_time_seconds": 100,
+        "priority_tier": "MAJOR",
+        "clearance_action": "PRIORITY_KASTURBA_GREEN"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.5956, 12.9706, 923.1]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "signal_anil_kumble_circle",
+      "properties": {
+        "id": "signal_anil_kumble_circle",
+        "name": "Anil Kumble Circle (MG Road - Brigade Road)",
+        "node_id": "node_anil_kumble_circle",
+        "highway": "traffic_signals",
+        "crossing": "traffic_signals",
+        "junction_type": "4_way",
+        "controlled_roads": [
+          "Mahatma Gandhi Road",
+          "Brigade Road",
+          "Central Street"
+        ],
+        "signal_protocol": "ITMS_BENGALURU_V2",
+        "has_ev_clearance_actuator": true,
+        "actuation_lead_time_sec": 45,
+        "cycle_time_seconds": 130,
+        "priority_tier": "CRITICAL",
+        "clearance_action": "GREEN_WAVE_MG_ROAD"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [77.6045, 12.9748, 922.2]
+      }
+    }
+  ]
+}

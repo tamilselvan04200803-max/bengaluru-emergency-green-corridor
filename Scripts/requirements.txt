@@ -1,0 +1,6 @@
+requests>=2.31.0
+geopandas>=1.0.0
+shapely>=2.0.0
+osmium>=3.6.0
+pyproj>=3.6.0
+pytest>=8.0.0

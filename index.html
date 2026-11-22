@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Bengaluru Emergency Green Corridor — 3D Digital Twin</title>
+  
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Zero-Build Three.js (r128), OrbitControls & BufferGeometryUtils from CDNs with fallback -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+
+  <!-- Verified Central Bengaluru Geospatial Datasets -->
+  <script src="preview_data.js"></script>
+</head>
+<body>
+
+  <!-- Loading Splash Screen -->
+  <div id="loading-screen">
+    <div class="loader-content">
+      <div class="loader-spinner"></div>
+      <h2>BENGALURU EMERGENCY GREEN CORRIDOR</h2>
+      <p>Initializing 3D Digital Twin Engine & Geospatial Network...</p>
+    </div>
+  </div>
+
+  <!-- Full-screen WebGL Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Sci-Fi HUD Header -->
+  <header id="hud-header">
+    <div class="hud-brand">
+      <span class="hud-badge pulse" id="telemetry-badge">STANDALONE 10Hz</span>
+      <div class="hud-titles">
+        <h1>BENGALURU SMART EMERGENCY CORRIDOR</h1>
+        <span class="hud-sub">CENTRAL ITMS V2 TWIN — MAJESTIC TO VICTORIA & BOWRING</span>
+      </div>
+    </div>
+
+    <div class="hud-telemetry-strip">
+      <div class="hud-stat">
+        <span class="stat-value" id="stat-fps">60 FPS</span>
+        <span class="stat-label">Frame Rate</span>
+      </div>
+      <div class="hud-stat">
+        <span class="stat-value" id="stat-speed">0.0 km/h</span>
+        <span class="stat-label">Ambulance Speed</span>
+      </div>
+      <div class="hud-stat">
+        <span class="stat-value" id="stat-preemptions">0</span>
+        <span class="stat-label">Green Waves Active</span>
+      </div>
+      <div class="hud-stat">
+        <span class="stat-value highlight" id="stat-savings">-- min</span>
+        <span class="stat-label">Travel Time Saved</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Status & Legend Drawer -->
+  <div id="hud-legend">
+    <div class="legend-item">
+      <span class="legend-dot red"></span>
+      <span>ITMS Signal: Stop / Normal Cycle</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot amber"></span>
+      <span>ITMS Signal: Caution / Transition</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot green"></span>
+      <span>Green Wave: Priority Corridor Override</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot blue"></span>
+      <span>Reflective Wet Asphalt Active (Rain)</span>
+    </div>
+  </div>
+
+  <!-- Bottom Command Deck -->
+  <div id="command-deck">
+    <div class="deck-group">
+      <span class="deck-title">CAMERA MODE</span>
+      <button class="deck-btn" id="btn-cam-chase">Chase [1]</button>
+      <button class="deck-btn" id="btn-cam-cockpit">Cockpit [2]</button>
+      <button class="deck-btn" id="btn-cam-aerial">Aerial [3]</button>
+      <button class="deck-btn active" id="btn-cam-orbit">Free Orbit [4]</button>
+    </div>
+
+    <div class="deck-group">
+      <span class="deck-title">MISSION CONTROLS</span>
+      <button class="deck-btn" id="btn-mode-toggle">Manual Drive [M]</button>
+      <button class="deck-btn" id="btn-siren-toggle">Siren [S]</button>
+      <button class="deck-btn" id="btn-rain-toggle">Weather: Clear [R]</button>
+      <button class="deck-btn" id="btn-day-toggle">Time: Day [N]</button>
+      <button class="deck-btn highlight-green" id="btn-deck-corridor-toggle">Corridor: ON [G]</button>
+      <button class="deck-btn" id="btn-export-benchmark">Export JSON</button>
+    </div>
+  </div>
+
+  <!-- Comparative Benchmark & Impact Analytics HUD -->
+  <aside id="benchmark-hud" class="benchmark-container">
+    <!-- Live AI Green Corridor ON vs OFF Toggle -->
+    <div class="corridor-toggle-bar">
+      <button id="btn-corridor-toggle" class="corridor-toggle-btn active" title="Toggle AI Green Corridor Preemption (Key: G)">
+        <span class="toggle-indicator"></span>
+        <span class="toggle-label" id="corridor-toggle-text">AI GREEN CORRIDOR: ACTIVE</span>
+        <span class="toggle-shortcut">[G]</span>
+      </button>
+    </div>
+
+    <!-- Side-by-Side Comparative Cards Grid -->
+    <div class="comparison-grid">
+      <!-- Left Card: Baseline Uncoordinated Model -->
+      <div class="benchmark-card baseline-card" id="card-baseline">
+        <div class="card-header">
+          <span class="card-dot red"></span>
+          <span class="card-title">BASELINE (UNCOORDINATED)</span>
+          <span class="card-tag">LEGACY ITMS</span>
+        </div>
+        <div class="card-metric-primary">
+          <span class="metric-value red-text" id="baselineTimeDisplay">00:00</span>
+          <span class="metric-unit">Transit Duration</span>
+        </div>
+        <div class="card-details">
+          <div class="detail-row">
+            <span class="detail-label">Stochastic Halts:</span>
+            <span class="detail-value red-text" id="baseline-halts-count">0 stops</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Avg Moving Speed:</span>
+            <span class="detail-value" id="baseline-avg-speed">14.2 km/h</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Signal Delays:</span>
+            <span class="detail-value">35-50s / Red</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Card: Impact Analytics & Golden Hour Survival Odds -->
+      <div class="benchmark-card summary-card" id="card-impact">
+        <div class="card-header">
+          <span class="card-title">IMPACT ANALYTICS</span>
+          <span class="card-badge badge-active" id="priorityStatusBadge">GREEN WAVE ACTIVE</span>
+        </div>
+        <div class="card-metric-hero">
+          <span class="hero-label">TRAVEL TIME SAVED</span>
+          <div class="hero-value-wrap">
+            <span class="hero-value green-text" id="minutesSavedCounter">0.0</span>
+            <span class="hero-unit">MIN</span>
+          </div>
+          <div class="hero-sub" id="percent-saved-display">0.0% TIME SAVED</div>
+        </div>
+
+        <!-- Golden Hour Survival Odds Preserved (+8% per minute saved) -->
+        <div class="card-golden-hour">
+          <div class="golden-hour-header">
+            <span class="golden-icon">❤️</span>
+            <span class="golden-title">GOLDEN HOUR SURVIVAL ODDS</span>
+          </div>
+          <div class="golden-value-wrap">
+            <span class="golden-value" id="golden-hour-odds">+0.0%</span>
+            <span class="golden-sub">(+8% / min saved)</span>
+          </div>
+          <div class="golden-bar-track">
+            <div class="golden-bar-fill" id="golden-hour-progress" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="card-details-center">
+          <div class="detail-badge" id="haltReductionBadge">
+            <span class="badge-num" id="halts-avoided-count">0</span>
+            <span class="badge-text">Halts Avoided</span>
+          </div>
+          <div class="detail-badge" id="speed-boost-badge">
+            <span class="badge-num" id="speed-boost-display">+0%</span>
+            <span class="badge-text">Speed Boost</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Card: AI Green Corridor Model -->
+      <div class="benchmark-card ai-card" id="card-ai-corridor">
+        <div class="card-header">
+          <span class="card-dot green"></span>
+          <span class="card-title">AI GREEN CORRIDOR</span>
+          <span class="card-tag green-tag">AI PREEMPTION</span>
+        </div>
+        <div class="card-metric-primary">
+          <span class="metric-value green-text" id="aiCorridorTimeDisplay">00:00</span>
+          <span class="metric-unit">Transit Duration</span>
+        </div>
+        <div class="card-details">
+          <div class="detail-row">
+            <span class="detail-label">Intersection Halts:</span>
+            <span class="detail-value green-text" id="ai-halts-count">0 (ZERO)</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Cruising Speed:</span>
+            <span class="detail-value green-text" id="ai-avg-speed">52.8 km/h</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Preemption Wave:</span>
+            <span class="detail-value green-text">300m Horizon</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integrated Radial Speedometer Gauge -->
+    <div class="speedometer-container" id="speedometerGauge">
+      <svg class="speed-dial-svg" viewBox="0 0 100 100">
+        <circle class="speed-dial-bg" cx="50" cy="50" r="42"></circle>
+        <circle class="speed-dial-fill" id="speed-dial-fill" cx="50" cy="50" r="42"></circle>
+      </svg>
+      <div class="speed-dial-content">
+        <span class="speed-dial-num" id="speedometer-value">0.0</span>
+        <span class="speed-dial-unit">KM/H</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Floating Toast Notifications -->
+  <div id="toast-container"></div>
+
+  <!-- Core Application Scripts in Execution Order -->
+  <script src="js/config.js"></script>
+  <script src="js/projection.js"></script>
+  <script src="js/environment.js"></script>
+  <script src="js/signals.js"></script>
+  <script src="js/atmosphere.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/ambulance.js"></script>
+  <script src="js/traffic.js"></script>
+  <script src="js/benchmark.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bengaluru Emergency Green Corridor Digital Twin — Live Preview</title>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="preview_data.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #1e293b;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+      z-index: 1000;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-live {
+      background: #10b981;
+      color: #064e3b;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .stats-bar {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .stat-val {
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .stat-lbl {
+      color: #94a3b8;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    #main-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+      position: relative;
+    }
+    #map {
+      flex: 1;
+      height: 100%;
+      background: #090d16;
+    }
+    #sidebar {
+      width: 380px;
+      background: #1e293b;
+      border-left: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 1000;
+    }
+    .sidebar-header {
+      padding: 14px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .amb-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .amb-card.tier-1 { border-left: 4px solid #ef4444; }
+    .amb-card.tier-2 { border-left: 4px solid #f59e0b; }
+    .amb-card.tier-3 { border-left: 4px solid #3b82f6; }
+    .amb-card-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .amb-id {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .tier-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .tier-badge.tier-1 { background: #7f1d1d; color: #fca5a5; }
+    .tier-badge.tier-2 { background: #78350f; color: #fde68a; }
+    .tier-badge.tier-3 { background: #1e3a8a; color: #bfdbfe; }
+    .amb-meta {
+      font-size: 12px;
+      color: #cbd5e1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      row-gap: 4px;
+    }
+    .wave-tag {
+      margin-top: 4px;
+      background: #064e3b;
+      color: #6ee7b7;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .wave-tag.inactive {
+      background: #334155;
+      color: #94a3b8;
+    }
+    .log-panel {
+      height: 180px;
+      background: #0b1120;
+      border-top: 1px solid #334155;
+      padding: 10px 14px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-entry {
+      line-height: 1.4;
+    }
+    .log-green { color: #34d399; }
+    .log-cyan { color: #38bdf8; }
+    .log-amber { color: #fbbf24; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="badge-live" id="conn-badge">Connecting...</span>
+      <h2 style="font-size: 16px; font-weight: 700;">Bengaluru Emergency Green Corridor Digital Twin</h2>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-val" id="stat-ambulances">5</span>
+        <span class="stat-lbl">Active Ambulances</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat-clearance">100%</span>
+        <span class="stat-lbl">Route Clear Rate</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat-preempted">0</span>
+        <span class="stat-lbl">Preempted Junctions</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat-fps">10.0 Hz</span>
+        <span class="stat-lbl">Telemetry Rate</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="main-container">
+    <div id="map"></div>
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <span>Active Fleet Dispatch</span>
+        <span id="rate-counter">10 Hz</span>
+      </div>
+      <div class="card-list" id="ambulance-cards"></div>
+      <div class="sidebar-header" style="font-size: 11px;">
+        <span>Real-time Arbitration & Preemption Log</span>
+      </div>
+      <div class="log-panel" id="log-box"></div>
+    </div>
+  </div>
+
+  <script>
+    // 1. Initialize Map centered on Central Bengaluru
+    const map = L.map('map', {
+      center: [12.97237, 77.58703],
+      zoom: 14,
+      zoomControl: true
+    });
+
+    // Dark-themed tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors, &copy; CARTO'
+    }).addTo(map);
+
+    // 2. Render Road Network
+    const roadLayer = L.geoJSON(ROADS_DATA, {
+      style: function(feature) {
+        const highway = feature.properties.highway;
+        let color = "#3b82f6";
+        let weight = 4;
+        if (highway === "primary") { color = "#60a5fa"; weight = 5; }
+        else if (highway === "secondary") { color = "#93c5fd"; weight = 4; }
+        else if (highway === "tertiary") { color = "#475569"; weight = 3; }
+        return { color: color, weight: weight, opacity: 0.65 };
+      }
+    }).addTo(map);
+
+    // 3. Render Hospitals
+    const hospitalIcon = L.divIcon({
+      className: 'custom-hosp-icon',
+      html: '<div style="background:#ef4444; width:22px; height:22px; border-radius:50%; border:2px solid #ffffff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:white; box-shadow:0 0 10px rgba(239,68,68,0.8);">H</div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
+
+    const hospitalMarkers = {};
+    L.geoJSON(HOSPITALS_DATA, {
+      pointToLayer: function(feature, latlng) {
+        const marker = L.marker(latlng, { icon: hospitalIcon });
+        marker.bindPopup(`<b>${feature.properties.name || "Hospital"}</b><br>Emergency: Yes<br>Capacity: ${feature.properties.emergency_capacity || "Full"}`);
+        hospitalMarkers[feature.properties.id] = marker;
+        return marker;
+      }
+    }).addTo(map);
+
+    // 4. Render Traffic Signals
+    const signalMarkers = {};
+    const signalDefaultIcon = (color = "#ef4444") => L.divIcon({
+      className: 'custom-sig-icon',
+      html: `<div style="background:${color}; width:14px; height:14px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px ${color}; transition: all 0.3s ease;"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+
+    L.geoJSON(SIGNALS_DATA, {
+      pointToLayer: function(feature, latlng) {
+        const marker = L.marker(latlng, { icon: signalDefaultIcon("#ef4444") });
+        const name = feature.properties.name || feature.properties.osm_id;
+        marker.bindPopup(`<b>Signal: ${name}</b><br>Status: Cycling`);
+        signalMarkers[feature.properties.osm_id] = marker;
+        signalMarkers[feature.properties.id] = marker;
+        return marker;
+      }
+    }).addTo(map);
+
+    // 5. Dynamic Ambulance Markers & Cards
+    const ambulanceMarkers = {};
+    const ambulanceData = {};
+    const cardsContainer = document.getElementById("ambulance-cards");
+    const logBox = document.getElementById("log-box");
+    const connBadge = document.getElementById("conn-badge");
+    const preempCountElem = document.getElementById("stat-preempted");
+
+    function addLog(text, colorClass = "log-green") {
+      const entry = document.createElement("div");
+      entry.className = `log-entry ${colorClass}`;
+      const time = new Date().toLocaleTimeString();
+      entry.innerText = `[${time}] ${text}`;
+      logBox.appendChild(entry);
+      logBox.scrollTop = logBox.scrollHeight;
+      if (logBox.children.length > 50) {
+        logBox.removeChild(logBox.children[0]);
+      }
+    }
+
+    function getAmbulanceIcon(tier) {
+      const colors = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6' };
+      const color = colors[tier] || '#10b981';
+      return L.divIcon({
+        className: 'custom-amb-icon',
+        html: `<div style="background:${color}; width:24px; height:24px; border-radius:6px; border:2px solid #ffffff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:white; box-shadow:0 0 14px ${color}; transform:rotate(0deg);">🚑</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+    }
+
+    // 6. Connect to Live WebSocket Server (or simulated playback fallback if offline)
+    let ws;
+    let fallbackInterval = null;
+
+    function connectWebSocket() {
+      ws = new WebSocket("ws://127.0.0.1:8765");
+
+      ws.onopen = () => {
+        connBadge.innerText = "ONLINE 10Hz";
+        connBadge.style.background = "#10b981";
+        addLog("Connected to WebSocket Telemetry Dispatcher (ws://127.0.0.1:8765)", "log-cyan");
+        if (fallbackInterval) { clearInterval(fallbackInterval); fallbackInterval = null; }
+      };
+
+      ws.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.frame_type === "state") {
+          handleStatePayload(payload);
+        } else {
+          handleKinematicPayload(payload);
+        }
+      };
+
+      ws.onclose = () => {
+        connBadge.innerText = "STANDALONE MODE";
+        connBadge.style.background = "#f59e0b";
+        addLog("WebSocket disconnected. Server offline on 8765.", "log-amber");
+        setTimeout(connectWebSocket, 4000);
+      };
+
+      ws.onerror = () => {
+        connBadge.innerText = "OFFLINE";
+        connBadge.style.background = "#ef4444";
+      };
+    }
+
+    function handleStatePayload(state) {
+      if (state.route_clear_rate !== undefined) {
+        document.getElementById("stat-clearance").innerText = `${state.route_clear_rate}%`;
+      }
+      if (state.total_signal_overrides !== undefined) {
+        document.getElementById("stat-preempted").innerText = state.total_signal_overrides;
+      }
+    }
+
+    const activeWaveJunctions = new Set();
+
+    function handleKinematicPayload(data) {
+      const vid = data.vehicle_id;
+      const tier = data.patient_criticality_tier || 1;
+      const lat = data.latitude;
+      const lon = data.longitude;
+      const speed = data.speed_kmh;
+      const wave = data.green_wave_junction_ids || [];
+
+      // Update or Create Marker
+      if (!ambulanceMarkers[vid]) {
+        const marker = L.marker([lat, lon], { icon: getAmbulanceIcon(tier) }).addTo(map);
+        marker.bindPopup(`<b>${vid}</b> (Tier ${tier})<br>Dest: ${data.destination_hospital_id}`);
+        ambulanceMarkers[vid] = marker;
+        addLog(`Spawned ${vid} (Tier ${tier}) en-route to ${data.destination_hospital_id}`, "log-cyan");
+      } else {
+        ambulanceMarkers[vid].setLatLng([lat, lon]);
+      }
+
+      ambulanceData[vid] = data;
+
+      // Update Signals visual state based on Green Wave
+      wave.forEach(jid => {
+        if (!activeWaveJunctions.has(jid)) {
+          activeWaveJunctions.add(jid);
+          if (signalMarkers[jid]) {
+            signalMarkers[jid].setIcon(signalDefaultIcon("#10b981")); // Emergency Green
+            addLog(`⚡ GREEN WAVE PREEMPTION on ${jid} for ${vid}`, "log-green");
+          }
+        }
+      });
+
+      renderSidebar();
+    }
+
+    function renderSidebar() {
+      cardsContainer.innerHTML = "";
+      let totalPreempts = 0;
+
+      for (const [vid, data] of Object.entries(ambulanceData)) {
+        const tier = data.patient_criticality_tier || 1;
+        const wave = data.green_wave_junction_ids || [];
+        totalPreempts += wave.length;
+
+        const card = document.createElement("div");
+        card.className = `amb-card tier-${tier}`;
+
+        const tierNames = { 1: "Tier 1 - Critical", 2: "Tier 2 - Urgent", 3: "Tier 3 - Standard" };
+
+        card.innerHTML = `
+          <div class="amb-card-title">
+            <span class="amb-id">${vid}</span>
+            <span class="tier-badge tier-${tier}">${tierNames[tier]}</span>
+          </div>
+          <div class="amb-meta">
+            <div>Speed: <b>${data.speed_kmh} km/h</b></div>
+            <div>Hospital: <b>${data.destination_hospital_id.replace("HOSP-", "")}</b></div>
+            <div>Road OSM: <b>#${data.current_road_osm_id || "Routing"}</b></div>
+            <div>Heading: <b>${Math.round(data.heading || 0)}°</b></div>
+          </div>
+          <div class="wave-tag ${wave.length > 0 ? '' : 'inactive'}">
+            <span>${wave.length > 0 ? '🟢 Green Wave Active (' + wave.length + ' Jcts)' : '⚪ No Preemption In Range'}</span>
+          </div>
+        `;
+        cardsContainer.appendChild(card);
+      }
+
+      preempCountElem.innerText = totalPreempts;
+    }
+
+    // Start WebSocket
+    connectWebSocket();
+  </script>
+</body>
+</html>
