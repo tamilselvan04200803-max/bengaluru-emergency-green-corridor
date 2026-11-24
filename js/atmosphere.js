@@ -281,16 +281,30 @@
           `
         );
 
+        // `roughnessFactor` and `metalnessFactor` are declared by their own
+        // chunks, in that order. Writing to both from the roughness hook fails
+        // to compile ('metalnessFactor' : undeclared identifier) because the
+        // metalness chunk has not run yet, so each write goes in its own hook.
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <roughnessmap_fragment>',
           `#include <roughnessmap_fragment>
            if (uWetness > 0.001) {
-             float n = fbm2(vCustomWorldPosition.xz * 0.06);
+             float n = fbm2(vCustomWorldPosition.xz * 0.06) * uWetness;
              float puddle = smoothstep(0.40, 0.65, n) * uWetness;
              float wetR = mix(0.24, 0.04, puddle);
              roughnessFactor = mix(roughnessFactor, wetR, uWetness);
-             metalnessFactor = mix(metalnessFactor, mix(0.35, 0.55, puddle), uWetness);
              diffuseColor.rgb *= mix(1.0, mix(0.72, 0.50, puddle), uWetness);
+           }
+          `
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <metalnessmap_fragment>',
+          `#include <metalnessmap_fragment>
+           if (uWetness > 0.001) {
+             float nm = fbm2(vCustomWorldPosition.xz * 0.06) * uWetness;
+             float puddleM = smoothstep(0.40, 0.65, nm) * uWetness;
+             metalnessFactor = mix(metalnessFactor, mix(0.35, 0.55, puddleM), uWetness);
            }
           `
         );

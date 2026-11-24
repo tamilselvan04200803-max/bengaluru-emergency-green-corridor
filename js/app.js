@@ -32,6 +32,12 @@
       this.activeCameraMode = 'orbit';
       this.aiCorridorActive = true;
 
+      // The deterministic simulation runs on a fixed 0.1 s timestep so the
+      // browser world is bit-identical to the Node test runs. Frame deltas
+      // arrive at ~60 Hz, so they are accumulated and spent in 0.1 s chunks.
+      this._simAccumulator = 0.0;
+      this._simStepSec = 0.1;
+
       this.initThree();
       this.initSubsystems();
       this.initDeckControls();
@@ -204,6 +210,110 @@
         this.ui = null;
       }
       window.uiInstance = this.ui;
+
+      // Stage 4: drive the deterministic simulation engine from the browser
+      // loop so the live app uses the same authoritative router, signal
+      // machine and bay state machine as the Node test suites.
+      this.initSimulation();
+    }
+
+    /**
+     * Constructs the deterministic SimulationEngine + SmartRoutingController
+     * and dispatches the ambulance onto a router-computed route. The engine
+     * is the single authority over ambulance kinematics; the AmbulanceManager
+     * mirrors its state onto the Three.js mesh each frame.
+     */
+    initSimulation() {
+      // network.js / simulation.js publish a namespace object on window
+      // ({SimulationNetwork, SimulationEdge, ...}) rather than the bare class,
+      // so resolve the constructors off the namespace when present.
+      const networkNs = (typeof SimulationNetwork !== 'undefined') ? SimulationNetwork : null;
+      const simNs = (typeof SimulationEngine !== 'undefined') ? SimulationEngine : null;
+      const SimulationNetworkCtor = (networkNs && networkNs.SimulationNetwork) ? networkNs.SimulationNetwork : networkNs;
+      const SimulationEngineCtor = (simNs && simNs.SimulationEngine) ? simNs.SimulationEngine : simNs;
+
+      if (typeof SimulationNetworkCtor !== 'function' || typeof SimulationEngineCtor !== 'function') {
+        console.warn('Application: simulation modules not loaded; running offline');
+        return;
+      }
+      if (typeof NETWORK_DATA === 'undefined') {
+        console.warn('Application: NETWORK_DATA not available');
+        return;
+      }
+
+      try {
+        const net = new SimulationNetworkCtor(NETWORK_DATA);
+        this.simNetwork = net;
+
+        const seed = (typeof CONFIG !== 'undefined' && CONFIG.SIMULATION) ? CONFIG.SIMULATION.seed : 42;
+        this.sim = new SimulationEngineCtor(net, this.signals, seed, this.projection);
+        this.sim.setDemandProfile('peak');
+        this.simSeed = seed;
+
+        if (typeof RoutingEngine !== 'undefined') {
+          const graph = new RoutingEngine.RoadGraph(NETWORK_DATA, seed);
+          const planner = new RoutingEngine.RoutePlanner(graph, this.signals);
+          const controller = new RoutingEngine.SmartRoutingController(planner, graph, this.signals, {});
+          this.sim.setRoutingController(controller);
+          this.sim.setCongestionCallback(map => controller.setLiveTravelTimes(map));
+          this.routingController = controller;
+          this.simGraph = graph;
+
+          // Plan the ambulance's route with the authoritative router and
+          // dispatch it on that exact edge list. The destination is the
+          // hospital the ambulance is configured for.
+          const amb = this.ambulance;
+          const destinationHospital = amb ? amb.destinationHospital : 'hosp_victoria_01';
+          const destNode = this._hospitalIngressNode(destinationHospital);
+          const startNode = this._nearestNetworkNode(amb ? amb.position : null);
+          if (destNode && startNode) {
+            const route = planner.findRouteEnhanced(startNode, destNode, { isPreempted: true });
+            if (route && route.path.length > 0) {
+              const ambId = amb && amb.vehicleId ? amb.vehicleId : 'amb_1';
+              this.sim.addAmbulance(ambId, route.path, destinationHospital);
+              if (amb) amb.attachSimulation(this.sim, ambId);
+              console.log(`[Application] Ambulance dispatched: ${route.path.length} edges, `
+                + `${route.distance.toFixed(0)} m, ETA ${route.totalTime.toFixed(1)} s`);
+            } else {
+              console.warn(`Application: no route from ${startNode} to ${destNode}`);
+            }
+          }
+        }
+
+        window.simInstance = this.sim;
+        window.routingControllerInstance = this.routingController || null;
+      } catch (e) {
+        console.error('Application: simulation initialization failed', e);
+        this.sim = null;
+      }
+    }
+
+    /**
+     * Resolve a hospital id to its ingress node id from the network data.
+     */
+    _hospitalIngressNode(hospitalId) {
+      if (!NETWORK_DATA || !NETWORK_DATA.hospitals) return null;
+      for (const h of NETWORK_DATA.hospitals) {
+        if (h.id === hospitalId) return h.ingress_node;
+      }
+      return null;
+    }
+
+    /**
+     * Find the network node nearest the ambulance's current world position.
+     */
+    _nearestNetworkNode(worldPos) {
+      if (!NETWORK_DATA || !NETWORK_DATA.nodes) return null;
+      let best = null;
+      let bestDist = Infinity;
+      for (const n of NETWORK_DATA.nodes) {
+        if (this.projection) {
+          const w = this.projection.latLonAltToCartesian(n.lat, n.lon, n.alt);
+          const d = Math.hypot(w.x - worldPos.x, w.z - worldPos.z);
+          if (d < bestDist) { bestDist = d; best = n.id; }
+        }
+      }
+      return best;
     }
 
     /**
@@ -453,20 +563,38 @@
         this.signals.update(dt);
       }
 
+      // Stage 4: the deterministic simulation engine is the single authority
+      // over ambulance kinematics and signal preemption. When it is attached
+      // the legacy distance-horizon preemption path is NOT run: the engine's
+      // SmartRoutingController owns the priority-hold lifecycle and the signal
+      // manager's own state machine walks the safe amber/all-red transition.
+      // The engine advances on a fixed 0.1 s accumulator so its tick sequence
+      // is frame-rate independent (and identical to the Node benchmark runs).
+      if (this.sim) {
+        this._simAccumulator += dt;
+        let steps = 0;
+        while (this._simAccumulator >= this._simStepSec && steps < 20) {
+          this.sim.step(this._simStepSec);
+          this._simAccumulator -= this._simStepSec;
+          steps += 1;
+        }
+        if (steps >= 20) this._simAccumulator = 0.0;
+      }
+
       // Update downstream modules if present
       if (this.ambulance) {
         this.ambulance.update(dt);
         if (this.speedElement && typeof this.ambulance.getSpeedKmh === 'function') {
           this.speedElement.innerText = `${this.ambulance.getSpeedKmh().toFixed(1)} km/h`;
         }
-        // Signal Preemption: Only active when AI Green Corridor is ON
-        if (this.signals && typeof this.ambulance.getPosition === 'function') {
-          if (this.aiCorridorActive) {
-            const ambPos = this.ambulance.getPosition();
-            const speed = this.ambulance.getSpeedKmh ? this.ambulance.getSpeedKmh() : 40.0;
-            const route = this.ambulance.getActiveRouteJunctions ? this.ambulance.getActiveRouteJunctions() : [];
-            this.signals.updatePreemption(ambPos, speed, route);
-          }
+        // Signal Preemption: Only active when AI Green Corridor is ON, and only
+        // when the simulation is NOT driving it (the sim owns preemption).
+        if (this.signals && typeof this.ambulance.getPosition === 'function'
+            && !this.sim && this.aiCorridorActive) {
+          const ambPos = this.ambulance.getPosition();
+          const speed = this.ambulance.getSpeedKmh ? this.ambulance.getSpeedKmh() : 40.0;
+          const route = this.ambulance.getActiveRouteJunctions ? this.ambulance.getActiveRouteJunctions() : [];
+          this.signals.updatePreemption(ambPos, speed, route);
         }
       }
 

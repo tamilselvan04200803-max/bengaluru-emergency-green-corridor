@@ -122,16 +122,17 @@ function runTests() {
 // ============================================================================
 
 // 1. RoadGraph Construction & Validation
-register('RoadGraph: Loads 34 nodes, 61 edges, 6 hospitals from network data', () => {
+register('RoadGraph: Loads 35 nodes, 63 edges, 6 hospitals from network data', () => {
   const networkData = loadNetworkData();
   const { RoadGraph } = loadRoutingModule();
 
   const graph = new RoadGraph(networkData);
 
-  // 34 junctions: 33 originally authored plus node_tipu_palace, which edge_tipu_fwd
-  // and edge_tipu_bwd already referenced but which was missing from the node table.
-  Assert.assertEqual(graph.nodes.size, 34, 'Should have 34 nodes');
-  Assert.assertEqual(graph.edges.size, 61, 'Should have 61 directed edges');
+  // 35 junctions: 34 originally authored plus node_st_johns_campus (St. John's Hospital campus).
+  // The frontage junction node_st_johns remains; the campus node is added for the dual-bay
+  // state machine and driveway connection (600 m service road).
+  Assert.assertEqual(graph.nodes.size, 35, 'Should have 35 nodes');
+  Assert.assertEqual(graph.edges.size, 63, 'Should have 63 directed edges');
   Assert.assertEqual(graph.hospitals.size, 6, 'Should have 6 hospitals');
 });
 

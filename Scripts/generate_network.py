@@ -425,6 +425,18 @@ NODES = [
         "signals": [],
         "roads": []
     },
+    # ---- KORAMANGALA HOSPITAL CAMPUS ----
+    {
+        "id": "node_st_johns_campus",
+        "name": "St. John's Medical College Hospital Campus",
+        "zone": "Koramangala",
+        "lat": 12.9245,
+        "lon": 77.6218,
+        "alt": 916.2,
+        "type": "hospital_campus",
+        "signals": [],
+        "roads": []
+    },
 ]
 
 
@@ -595,12 +607,13 @@ EDGES = [
     create_edge("edge_silk_forum_bwd", "Sarjapur Road (Forum -> Silk Board) Backward",
                 "node_forum", "node_silk_board",
                 "primary", 3, 50, False, "asphalt", 1500.0, 915.0, False, True, "backward"),
-    create_edge("edge_silk_stjohns_fwd", "Sarjapur Road (Silk Board -> St. John's) Forward",
+    # St. John's Hospital: Sarjapur Road goes past Forum, then curves to frontage junction
+    create_edge("edge_silk_stjohns_fwd", "Sarjapur Road (Silk Board -> St. John's Frontage) Forward",
                 "node_silk_board", "node_st_johns",
-                "primary", 3, 50, False, "asphalt", 800.0, 914.5, False, True, "forward"),
-    create_edge("edge_silk_stjohns_bwd", "Sarjapur Road (St. John's -> Silk Board) Backward",
+                "primary", 3, 50, False, "asphalt", 2515.7, 914.5, False, True, "forward"),
+    create_edge("edge_silk_stjohns_bwd", "Sarjapur Road (St. John's Frontage -> Silk Board) Backward",
                 "node_st_johns", "node_silk_board",
-                "primary", 3, 50, False, "asphalt", 800.0, 914.5, False, True, "backward"),
+                "primary", 3, 50, False, "asphalt", 2515.7, 914.5, False, True, "backward"),
     create_edge("edge_lalbagh_nimhans_bwd", "Hosur Road (NIMHANS -> Lalbagh West) Backward",
                 "node_nimhans", "node_lalbagh_west",
                 "primary", 3, 50, False, "asphalt", 2100.0, 920.0, False, True, "backward"),
@@ -630,12 +643,19 @@ EDGES = [
     create_edge("edge_sony_forum_bwd", "Koramangala Inner Ring (Forum -> Sony World) Backward",
                 "node_forum", "node_sony_world",
                 "primary", 2, 40, False, "asphalt", 1200.0, 917.0, False),
-    create_edge("edge_forum_stjohns_fwd", "Koramangala 80ft Road (Forum -> St. John's) Forward",
+    create_edge("edge_forum_stjohns_fwd", "Koramangala 80ft Road (Forum -> St. John's Frontage) Forward",
                 "node_forum", "node_st_johns",
-                "secondary", 2, 30, False, "asphalt", 800.0, 916.5, False),
-    create_edge("edge_forum_stjohns_bwd", "Koramangala 80ft Road (St. John's -> Forum) Backward",
+                "secondary", 2, 30, False, "asphalt", 486.5, 916.5, False),
+    create_edge("edge_forum_stjohns_bwd", "Koramangala 80ft Road (St. John's Frontage -> Forum) Backward",
                 "node_st_johns", "node_forum",
-                "secondary", 2, 30, False, "asphalt", 800.0, 916.5, False),
+                "secondary", 2, 30, False, "asphalt", 486.5, 916.5, False),
+    # St. John's Hospital driveway (frontage -> campus)
+    create_edge("edge_stjohns_driveway_fwd", "St. John's Hospital Driveway (Frontage -> Campus) Forward",
+                "node_st_johns", "node_st_johns_campus",
+                "service", 2, 20, False, "asphalt", 600.0, 916.2, False, False, "forward"),
+    create_edge("edge_stjohns_driveway_bwd", "St. John's Hospital Driveway (Campus -> Frontage) Backward",
+                "node_st_johns_campus", "node_st_johns",
+                "service", 2, 20, False, "asphalt", 600.0, 916.2, False, False, "backward"),
 
     # ---- EAST ZONE: MG Road extension ----
     create_edge("edge_trinity_indiranagar_fwd", "Old Madras Road (Trinity -> Indiranagar) Forward",
@@ -728,14 +748,16 @@ HOSPITALS = [
                 "name": "Trauma Bay A (Primary Resuscitation)",
                 "position": {"lat": 12.9634, "lon": 77.5755, "alt": 915.0},
                 "dedicated_to": "trauma_resuscitation",
-                "coordinates_offset_m": {"x": -8, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": -8, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             },
             "bay_b": {
                 "id": "victoria_bay_b",
                 "name": "Trauma Bay B (Secondary Resuscitation / Burn)",
                 "position": {"lat": 12.9633, "lon": 77.5755, "alt": 915.0},
                 "dedicated_to": "burn_trauma",
-                "coordinates_offset_m": {"x": 8, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": 8, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             }
         },
         "driveway": {
@@ -747,7 +769,8 @@ HOSPITALS = [
             "length_m": 25.0,
             "surface": "asphalt",
             "width_m": 6.0,
-            "approach_bearing_deg": 180.0
+            "approach_bearing_deg": 180.0,
+            "provenance": "SYNTHETIC_DROP_OFF"
         }
     },
     {
@@ -767,14 +790,16 @@ HOSPITALS = [
                 "name": "Emergency Surgery Bay A",
                 "position": {"lat": 12.9829, "lon": 77.6027, "alt": 923.0},
                 "dedicated_to": "emergency_surgery",
-                "coordinates_offset_m": {"x": -6, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": -6, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             },
             "bay_b": {
                 "id": "bowring_bay_b",
                 "name": "Pediatric/Orthopedic Trauma Bay B",
                 "position": {"lat": 12.9828, "lon": 77.6027, "alt": 923.0},
                 "dedicated_to": "pediatric_ortho_trauma",
-                "coordinates_offset_m": {"x": 6, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": 6, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             }
         },
         "driveway": {
@@ -786,7 +811,8 @@ HOSPITALS = [
             "length_m": 25.0,
             "surface": "asphalt",
             "width_m": 5.5,
-            "approach_bearing_deg": 270.0
+            "approach_bearing_deg": 270.0,
+            "provenance": "SYNTHETIC_DROP_OFF"
         }
     },
     {
@@ -806,14 +832,16 @@ HOSPITALS = [
                 "name": "Cardiology Emergency Bay A",
                 "position": {"lat": 12.9702, "lon": 77.5873, "alt": 921.8},
                 "dedicated_to": "cardiology_emergency",
-                "coordinates_offset_m": {"x": 0, "y": -5, "z": 0}
+                "coordinates_offset_m": {"x": 0, "y": -5, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             },
             "bay_b": {
                 "id": "stmarthas_bay_b",
                 "name": "Trauma/Ortho Bay B",
                 "position": {"lat": 12.9702, "lon": 77.5873, "alt": 921.8},
                 "dedicated_to": "trauma_ortho",
-                "coordinates_offset_m": {"x": 0, "y": 5, "z": 0}
+                "coordinates_offset_m": {"x": 0, "y": 5, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             }
         },
         "driveway": {
@@ -825,7 +853,8 @@ HOSPITALS = [
             "length_m": 25.0,
             "surface": "asphalt",
             "width_m": 5.0,
-            "approach_bearing_deg": 0.0
+            "approach_bearing_deg": 0.0,
+            "provenance": "SYNTHETIC_DROP_OFF"
         }
     },
     {
@@ -845,14 +874,16 @@ HOSPITALS = [
                 "name": "Cardiac Emergency Bay A",
                 "position": {"lat": 12.9706, "lon": 77.5956, "alt": 923.1},
                 "dedicated_to": "cardiac_emergency",
-                "coordinates_offset_m": {"x": -5, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": -5, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             },
             "bay_b": {
                 "id": "mallya_bay_b",
                 "name": "Neuro Trauma Bay B",
                 "position": {"lat": 12.9705, "lon": 77.5956, "alt": 923.1},
                 "dedicated_to": "neuro_trauma",
-                "coordinates_offset_m": {"x": 5, "y": 0, "z": 0}
+                "coordinates_offset_m": {"x": 5, "y": 0, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             }
         },
         "driveway": {
@@ -864,7 +895,8 @@ HOSPITALS = [
             "length_m": 25.0,
             "surface": "asphalt",
             "width_m": 4.5,
-            "approach_bearing_deg": 225.0
+            "approach_bearing_deg": 225.0,
+            "provenance": "SYNTHETIC_DROP_OFF"
         }
     },
     {
@@ -884,14 +916,16 @@ HOSPITALS = [
                 "name": "OB/GYN Emergency Bay A",
                 "position": {"lat": 12.9619, "lon": 77.5742, "alt": 914.5},
                 "dedicated_to": "obgyn_emergency",
-                "coordinates_offset_m": {"x": 0, "y": -5, "z": 0}
+                "coordinates_offset_m": {"x": 0, "y": -5, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             },
             "bay_b": {
                 "id": "vanivilas_bay_b",
                 "name": "NICU/Pediatric Bay B",
                 "position": {"lat": 12.9618, "lon": 77.5742, "alt": 914.5},
                 "dedicated_to": "nicu_pediatric",
-                "coordinates_offset_m": {"x": 0, "y": 5, "z": 0}
+                "coordinates_offset_m": {"x": 0, "y": 5, "z": 0},
+                "provenance": "SYNTHETIC_DROP_OFF"
             }
         },
         "driveway": {
@@ -903,13 +937,14 @@ HOSPITALS = [
             "length_m": 25.0,
             "surface": "asphalt",
             "width_m": 4.5,
-            "approach_bearing_deg": 45.0
+            "approach_bearing_deg": 45.0,
+            "provenance": "SYNTHETIC_DROP_OFF"
         }
     },
     {
         "id": "hosp_stjohns_01",
         "name": "St. John's Medical College Hospital",
-        "campus_node": "node_st_johns",
+        "campus_node": "node_st_johns_campus",
         "ingress_node": "node_st_johns",
         "trauma_level": "Level 1",
         "bed_capacity": 1300,
@@ -922,10 +957,13 @@ HOSPITALS = [
             # coordinates. The real St. John's campus driveway geometry is not mapped in
             # the checked-in OSM data, so every non-OSM bay/driveway element below is
             # labelled SYNTHETIC_DROP_OFF rather than presented as surveyed ground truth.
+            # The same label is applied uniformly to all six hospital compounds above,
+            # whose bay offsets and driveway ingress points are likewise synthesised by
+            # calculate_driveway_ingress() and not derived from OSM survey data.
             "bay_a": {
                 "id": "stjohns_bay_a",
                 "name": "Major Trauma Bay A",
-                "position": {"lat": 12.92940, "lon": 77.61600, "alt": 916.2},
+                "position": {"lat": 12.92450, "lon": 77.62180, "alt": 916.2},
                 "dedicated_to": "major_trauma",
                 "coordinates_offset_m": {"x": -10, "y": 0, "z": 0},
                 "provenance": "SYNTHETIC_DROP_OFF"
@@ -933,7 +971,7 @@ HOSPITALS = [
             "bay_b": {
                 "id": "stjohns_bay_b",
                 "name": "Multi-Specialty Bay B",
-                "position": {"lat": 12.92930, "lon": 77.61600, "alt": 916.2},
+                "position": {"lat": 12.92440, "lon": 77.62180, "alt": 916.2},
                 "dedicated_to": "multi_specialty",
                 "coordinates_offset_m": {"x": 10, "y": 0, "z": 0},
                 "provenance": "SYNTHETIC_DROP_OFF"
@@ -941,11 +979,11 @@ HOSPITALS = [
         },
         "driveway": {
             "ingress_point": calculate_driveway_ingress(
+                12.92450, 77.62180, 916.2,
                 12.92940, 77.61600, 916.2,
-                12.9274, 77.6167, 916.8,
-                25.0
+                600.0
             ),
-            "length_m": 25.0,
+            "length_m": 600.0,
             "surface": "asphalt",
             "width_m": 7.0,
             "approach_bearing_deg": 315.0,

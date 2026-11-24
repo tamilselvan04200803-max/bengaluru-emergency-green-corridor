@@ -855,9 +855,12 @@
         // Space not ready: hold at the junction on the old edge and retry next
         // tick. Clamp s just short of the terminus so the vehicle is not
         // treated as having arrived and will not be despawned meanwhile.
+        // The vehicle is already present in oldQueue — it is only ever removed
+        // on a successful handoff below — so do NOT re-enqueue it here: that
+        // would insert a second copy of the same object, which the bumper
+        // constraint then pins against itself forever as an overlap.
         veh.s = fromEdge.length - 0.2;
         veh.v = Math.min(veh.v, 2.0);
-        if (oldQueue) oldQueue.enqueue(veh);
         return false;
       }
 
@@ -1213,6 +1216,13 @@
               if (bayReq) {
                 veh.ambulanceState = AMBULANCE_STATE.APPROACHING_BAY;
                 veh.targetBay = { hospitalId: bayReq.hospitalId, bayKey: bayReq.bayId };
+                // Release the standstill command. While both bays were held this
+                // was set to 0 every tick; leaving it latched would strand the
+                // ambulance at the driveway even after a bay frees, because
+                // APPROACHING_BAY only ever lowers targetV. Restoring the
+                // cruise target lets the approach profile decelerate it to the
+                // bay on its own.
+                veh.targetV = veh.cls.idm.v0;
                 this._logDecision(ambId, 'APPROACHING_BAY', veh.edge.id, bayReq.bayId, 0, 'Bay assigned on final approach');
               } else {
                 // Both bays occupied: wait at the driveway entrance. Re-tried

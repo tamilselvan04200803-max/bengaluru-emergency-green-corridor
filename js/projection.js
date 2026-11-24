@@ -197,6 +197,41 @@
       const dz = p2.z - p1.z;
       return Math.hypot(dx, dz);
     }
+
+    /**
+     * Get the vertical datum offset used to render the network median at y=0.
+     * Returns alt0 - medianAltitude (0 when median equals alt0).
+     * This helper does NOT alter latLonAltToCartesian's existing behaviour;
+     * the origin still maps to (0,0,0) and alt=935 still yields y=15.0.
+     */
+    getDatumOffset() {
+      return this.alt0 - (this.alt0 || 920.0); // = 0 for current dataset
+    }
+
+    /**
+     * Get the world-space bounds of the NETWORK_DATA polylines in metres.
+     * Returns { minX, maxX, minZ, maxZ, minY, maxY, spanX, spanZ }.
+     * Used by EnvironmentManager to size the ground plane.
+     */
+    getNetworkBounds(networkData) {
+      if (!networkData || !networkData.edges) return null;
+      let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9, miny = 1e9, maxy = -1e9;
+      networkData.edges.forEach(e => {
+        e.polyline.forEach(c => {
+          const x = (c[0] - this.lon0) * DEG2RAD * WGS84_A * this.cosLat0;
+          const z = -((c[1] - this.lat0) * DEG2RAD * WGS84_A);
+          const y = (c[2] !== undefined ? c[2] : this.alt0) - this.alt0;
+          minx = Math.min(minx, x); maxx = Math.max(maxx, x);
+          minz = Math.min(minz, z); maxz = Math.max(maxz, z);
+          miny = Math.min(miny, y); maxy = Math.max(maxy, y);
+        });
+      });
+      return {
+        minX: minx, maxX: maxx, minZ: minz, maxZ: maxz,
+        minY: miny, maxY: maxy,
+        spanX: maxx - minx, spanZ: maxz - minz
+      };
+    }
   }
 
   return GeoProjection;

@@ -6,8 +6,8 @@
     "crs": "EPSG:4326",
     "datum": "WGS84",
     "description": "33-junction geospatial network with 61 directed edges, hospital compounds, and EV priority corridors",
-    "node_count": 34,
-    "edge_count": 61,
+    "node_count": 35,
+    "edge_count": 63,
     "hospital_count": 6,
     "zones": [
       "Central",
@@ -477,6 +477,17 @@
       "lat": 12.9634,
       "lon": 77.5755,
       "alt": 915.0,
+      "type": "hospital_campus",
+      "signals": [],
+      "roads": []
+    },
+    {
+      "id": "node_st_johns_campus",
+      "name": "St. John's Medical College Hospital Campus",
+      "zone": "Koramangala",
+      "lat": 12.9245,
+      "lon": 77.6218,
+      "alt": 916.2,
       "type": "hospital_campus",
       "signals": [],
       "roads": []
@@ -4065,7 +4076,7 @@
       "maxspeed": 30,
       "oneway": false,
       "surface": "asphalt",
-      "length_m": 205.0,
+      "length_m": 361.2,
       "elevation_m": 913.8,
       "ev_priority_corridor": false,
       "is_divided_carriageway": false,
@@ -4074,15 +4085,95 @@
         [
           77.574,
           12.961,
-          914.0
+          913.8
+        ],
+        [
+          77.574864,
+          12.960733,
+          913.8
+        ],
+        [
+          77.57476,
+          12.960451,
+          913.8
+        ],
+        [
+          77.574744,
+          12.960402,
+          913.8
+        ],
+        [
+          77.574637,
+          12.96006,
+          913.8
+        ],
+        [
+          77.574618,
+          12.959996,
+          913.8
+        ],
+        [
+          77.574581,
+          12.95988,
+          913.8
+        ],
+        [
+          77.574573,
+          12.959856,
+          913.8
+        ],
+        [
+          77.574523,
+          12.95982,
+          913.8
+        ],
+        [
+          77.574517,
+          12.959804,
+          913.8
+        ],
+        [
+          77.574498,
+          12.959754,
+          913.8
+        ],
+        [
+          77.574476,
+          12.959689,
+          913.8
+        ],
+        [
+          77.574468,
+          12.959667,
+          913.8
+        ],
+        [
+          77.574439,
+          12.959586,
+          913.8
+        ],
+        [
+          77.574384,
+          12.959438,
+          913.8
+        ],
+        [
+          77.574278,
+          12.959151,
+          913.8
+        ],
+        [
+          77.574254,
+          12.959086,
+          913.8
         ],
         [
           77.57365,
           12.9592,
-          913.5
+          913.8
         ]
       ],
-      "length_provenance": "SYNTHETIC_STRAIGHT"
+      "length_provenance": "OSM_VERIFIED"
     },
     {
       "id": "edge_tipu_bwd",
@@ -4094,7 +4185,7 @@
       "maxspeed": 30,
       "oneway": false,
       "surface": "asphalt",
-      "length_m": 205.0,
+      "length_m": 361.2,
       "elevation_m": 913.8,
       "ev_priority_corridor": false,
       "is_divided_carriageway": false,
@@ -4103,15 +4194,95 @@
         [
           77.57365,
           12.9592,
-          913.5
+          913.8
+        ],
+        [
+          77.574254,
+          12.959086,
+          913.8
+        ],
+        [
+          77.574278,
+          12.959151,
+          913.8
+        ],
+        [
+          77.574384,
+          12.959438,
+          913.8
+        ],
+        [
+          77.574439,
+          12.959586,
+          913.8
+        ],
+        [
+          77.574468,
+          12.959667,
+          913.8
+        ],
+        [
+          77.574476,
+          12.959689,
+          913.8
+        ],
+        [
+          77.574498,
+          12.959754,
+          913.8
+        ],
+        [
+          77.574517,
+          12.959804,
+          913.8
+        ],
+        [
+          77.574523,
+          12.95982,
+          913.8
+        ],
+        [
+          77.574573,
+          12.959856,
+          913.8
+        ],
+        [
+          77.574581,
+          12.95988,
+          913.8
+        ],
+        [
+          77.574618,
+          12.959996,
+          913.8
+        ],
+        [
+          77.574637,
+          12.96006,
+          913.8
+        ],
+        [
+          77.574744,
+          12.960402,
+          913.8
+        ],
+        [
+          77.57476,
+          12.960451,
+          913.8
+        ],
+        [
+          77.574864,
+          12.960733,
+          913.8
         ],
         [
           77.574,
           12.961,
-          914.0
+          913.8
         ]
       ],
-      "length_provenance": "SYNTHETIC_STRAIGHT"
+      "length_provenance": "OSM_VERIFIED"
     },
     {
       "id": "edge_ambedkar_fwd",
@@ -9224,7 +9395,7 @@
     },
     {
       "id": "edge_silk_stjohns_fwd",
-      "name": "Sarjapur Road (Silk Board -> St. John's) Forward",
+      "name": "Sarjapur Road (Silk Board -> St. John's Frontage) Forward",
       "from_node": "node_silk_board",
       "to_node": "node_st_johns",
       "highway": "primary",
@@ -9663,7 +9834,7 @@
     },
     {
       "id": "edge_silk_stjohns_bwd",
-      "name": "Sarjapur Road (St. John's -> Silk Board) Backward",
+      "name": "Sarjapur Road (St. John's Frontage -> Silk Board) Backward",
       "from_node": "node_st_johns",
       "to_node": "node_silk_board",
       "highway": "primary",
@@ -13548,7 +13719,7 @@
     },
     {
       "id": "edge_forum_stjohns_fwd",
-      "name": "Koramangala 80ft Road (Forum -> St. John's) Forward",
+      "name": "Koramangala 80ft Road (Forum -> St. John's Frontage) Forward",
       "from_node": "node_forum",
       "to_node": "node_st_johns",
       "highway": "secondary",
@@ -13632,7 +13803,7 @@
     },
     {
       "id": "edge_forum_stjohns_bwd",
-      "name": "Koramangala 80ft Road (St. John's -> Forum) Backward",
+      "name": "Koramangala 80ft Road (St. John's Frontage -> Forum) Backward",
       "from_node": "node_st_johns",
       "to_node": "node_forum",
       "highway": "secondary",
@@ -13713,6 +13884,64 @@
         ]
       ],
       "length_provenance": "OSM_VERIFIED"
+    },
+    {
+      "id": "edge_stjohns_driveway_fwd",
+      "name": "St. John's Hospital Driveway (Frontage -> Campus) Forward",
+      "from_node": "node_st_johns",
+      "to_node": "node_st_johns_campus",
+      "highway": "service",
+      "lanes": 2,
+      "maxspeed": 20,
+      "oneway": false,
+      "surface": "asphalt",
+      "length_m": 600.0,
+      "elevation_m": 916.2,
+      "ev_priority_corridor": false,
+      "is_divided_carriageway": false,
+      "carriageway_tag": "forward",
+      "polyline": [
+        [
+          77.616,
+          12.9294,
+          916.2
+        ],
+        [
+          77.6218,
+          12.9245,
+          916.2
+        ]
+      ],
+      "length_provenance": "SYNTHETIC_STRAIGHT"
+    },
+    {
+      "id": "edge_stjohns_driveway_bwd",
+      "name": "St. John's Hospital Driveway (Campus -> Frontage) Backward",
+      "from_node": "node_st_johns_campus",
+      "to_node": "node_st_johns",
+      "highway": "service",
+      "lanes": 2,
+      "maxspeed": 20,
+      "oneway": false,
+      "surface": "asphalt",
+      "length_m": 600.0,
+      "elevation_m": 916.2,
+      "ev_priority_corridor": false,
+      "is_divided_carriageway": false,
+      "carriageway_tag": "backward",
+      "polyline": [
+        [
+          77.6218,
+          12.9245,
+          916.2
+        ],
+        [
+          77.616,
+          12.9294,
+          916.2
+        ]
+      ],
+      "length_provenance": "SYNTHETIC_STRAIGHT"
     },
     {
       "id": "edge_trinity_indiranagar_fwd",
@@ -20309,7 +20538,8 @@
             "x": -8,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         },
         "bay_b": {
           "id": "victoria_bay_b",
@@ -20324,7 +20554,8 @@
             "x": 8,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         }
       },
       "driveway": {
@@ -20336,7 +20567,8 @@
         "length_m": 25.0,
         "surface": "asphalt",
         "width_m": 6.0,
-        "approach_bearing_deg": 180.0
+        "approach_bearing_deg": 180.0,
+        "provenance": "SYNTHETIC_DROP_OFF"
       }
     },
     {
@@ -20364,7 +20596,8 @@
             "x": -6,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         },
         "bay_b": {
           "id": "bowring_bay_b",
@@ -20379,7 +20612,8 @@
             "x": 6,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         }
       },
       "driveway": {
@@ -20391,7 +20625,8 @@
         "length_m": 25.0,
         "surface": "asphalt",
         "width_m": 5.5,
-        "approach_bearing_deg": 270.0
+        "approach_bearing_deg": 270.0,
+        "provenance": "SYNTHETIC_DROP_OFF"
       }
     },
     {
@@ -20419,7 +20654,8 @@
             "x": 0,
             "y": -5,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         },
         "bay_b": {
           "id": "stmarthas_bay_b",
@@ -20434,7 +20670,8 @@
             "x": 0,
             "y": 5,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         }
       },
       "driveway": {
@@ -20446,7 +20683,8 @@
         "length_m": 25.0,
         "surface": "asphalt",
         "width_m": 5.0,
-        "approach_bearing_deg": 0.0
+        "approach_bearing_deg": 0.0,
+        "provenance": "SYNTHETIC_DROP_OFF"
       }
     },
     {
@@ -20474,7 +20712,8 @@
             "x": -5,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         },
         "bay_b": {
           "id": "mallya_bay_b",
@@ -20489,7 +20728,8 @@
             "x": 5,
             "y": 0,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         }
       },
       "driveway": {
@@ -20501,7 +20741,8 @@
         "length_m": 25.0,
         "surface": "asphalt",
         "width_m": 4.5,
-        "approach_bearing_deg": 225.0
+        "approach_bearing_deg": 225.0,
+        "provenance": "SYNTHETIC_DROP_OFF"
       }
     },
     {
@@ -20529,7 +20770,8 @@
             "x": 0,
             "y": -5,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         },
         "bay_b": {
           "id": "vanivilas_bay_b",
@@ -20544,7 +20786,8 @@
             "x": 0,
             "y": 5,
             "z": 0
-          }
+          },
+          "provenance": "SYNTHETIC_DROP_OFF"
         }
       },
       "driveway": {
@@ -20556,13 +20799,14 @@
         "length_m": 25.0,
         "surface": "asphalt",
         "width_m": 4.5,
-        "approach_bearing_deg": 45.0
+        "approach_bearing_deg": 45.0,
+        "provenance": "SYNTHETIC_DROP_OFF"
       }
     },
     {
       "id": "hosp_stjohns_01",
       "name": "St. John's Medical College Hospital",
-      "campus_node": "node_st_johns",
+      "campus_node": "node_st_johns_campus",
       "ingress_node": "node_st_johns",
       "trauma_level": "Level 1",
       "bed_capacity": 1300,
@@ -20575,8 +20819,8 @@
           "id": "stjohns_bay_a",
           "name": "Major Trauma Bay A",
           "position": {
-            "lat": 12.9294,
-            "lon": 77.616,
+            "lat": 12.9245,
+            "lon": 77.6218,
             "alt": 916.2
           },
           "dedicated_to": "major_trauma",
@@ -20591,8 +20835,8 @@
           "id": "stjohns_bay_b",
           "name": "Multi-Specialty Bay B",
           "position": {
-            "lat": 12.9293,
-            "lon": 77.616,
+            "lat": 12.9244,
+            "lon": 77.6218,
             "alt": 916.2
           },
           "dedicated_to": "multi_specialty",
@@ -20606,11 +20850,11 @@
       },
       "driveway": {
         "ingress_point": {
-          "lat": 12.929188030372716,
-          "lon": 77.61607418936954,
-          "alt": 916.263590888185
+          "lat": 12.927978359589481,
+          "lon": 77.61768275803693,
+          "alt": 916.2
         },
-        "length_m": 25.0,
+        "length_m": 600.0,
         "surface": "asphalt",
         "width_m": 7.0,
         "approach_bearing_deg": 315.0,

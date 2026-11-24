@@ -141,9 +141,16 @@
       this.routeRenderer = null;
       this.currentRouteInfo = null;
       this.simulationTime = 0;
+
+      // Stage 4: when attached to a SimulationEngine the deterministic sim is
+      // the single authority over position, heading and speed. The browser
+      // fallback waypoint engine is disabled so the live app can never silently
+      // revert to the legacy internal navigation.
+      this.simDriven = false;
+      this.simBridge = null;
       this.initSmartRouting();
 
-      // Autonomous Waypoints Engine
+      // Autonomous Waypoints Engine (offline fallback only)
       this.waypoints = [];
       this.currentWaypointIndex = 0;
       this.autonomousCruisingSpeedKmh = 50.0;
@@ -833,6 +840,52 @@
     }
 
     /**
+     * Drive the 3D controller from the deterministic SimulationEngine.
+     *
+     * The engine owns the ambulance's kinematics (arc-length position, speed,
+     * bay state machine), so this is a read: the engine steps, then the
+     * controller mirrors its state onto the Three.js mesh. The controller
+     * keeps its own clearance cone and route junctions for the civilian
+     * parting-wave and preemption subsystems, which still need a live
+     * heading rather than a planned one.
+     */
+    updateSimDriven(dt) {
+      const { sim, ambulanceId } = this.simBridge;
+      if (!sim) return;
+
+      // The engine is stepped once per frame by Application.animate() (fixed
+      // 0.1 s accumulator). This method only mirrors engine state onto the
+      // Three.js mesh — stepping here too would advance the world twice.
+      const veh = sim.vehicles.get(ambulanceId);
+      if (!veh) return;
+
+      const sample = veh.edge.sampleAt(veh.s);
+      if (this.projection) {
+        const world = this.projection.latLonAltToCartesian(sample.lat, sample.lon, sample.alt);
+        this.position.x = world.x;
+        this.position.y = world.y;
+        this.position.z = world.z;
+      } else {
+        this.position.x = sample.lon;
+        this.position.y = sample.alt;
+        this.position.z = sample.lat;
+      }
+
+      // Heading is the edge tangent at the current arc-length. Compass bearing
+      // 0 = North, +ve = clockwise; Three.js yaw is -bearing.
+      const bearingDeg = (sample.headingRad * 180.0 / Math.PI + 360.0) % 360.0;
+      this.headingDeg = bearingDeg;
+      this.headingRad = sample.headingRad;
+      this.speedKmh = veh.v * 3.6;
+      this.speedMps = veh.v;
+
+      // Suspension: a small pitch from longitudinal acceleration, roll from
+      // the tangent turn rate. These are cosmetic only — the engine is the
+      // authority on position — but they keep the chase camera usable.
+      this.computePitchAndRoll(veh.a || 0.0, 0.0, dt);
+    }
+
+    /**
      * Updates smart routing controller with current ambulance state.
      */
     updateSmartRouting(dt) {
@@ -1054,6 +1107,26 @@
     }
 
     /**
+     * Attach this controller to a deterministic SimulationEngine. When set,
+     * the simulation is the single authority over the ambulance's position,
+     * heading and speed; the offline waypoint engine is disabled so the live
+     * app cannot silently fall back to legacy internal navigation.
+     *
+     * @param {SimulationEngine} sim
+     * @param {string} ambulanceId
+     */
+    attachSimulation(sim, ambulanceId = 'amb_1') {
+      this.simDriven = true;
+      this.simBridge = { sim, ambulanceId };
+    }
+
+    /** Detach from the simulation, returning to offline waypoint navigation. */
+    detachSimulation() {
+      this.simDriven = false;
+      this.simBridge = null;
+    }
+
+    /**
      * Master update loop called every frame at 60 FPS.
      * @param {number} dt - Frame delta time in seconds
      */
@@ -1063,14 +1136,17 @@
       // 1. Navigation / Driving Physics
       if (this.isManual) {
         this.updateManualDriving(dt);
-      } else {
-        if (!this.isWsConnected) {
-          this.updateInternalSimulation(dt);
-        }
+      } else if (this.simDriven && this.simBridge) {
+        this.updateSimDriven(dt);
+      } else if (!this.isWsConnected) {
+        this.updateInternalSimulation(dt);
       }
 
-      // 2. Smart Routing Update (Stage 2)
-      if (this.smartRouting) {
+      // 2. Smart Routing Update (Stage 2). Skipped when sim-driven: the
+      // SimulationEngine's own SmartRoutingController is the authority, and it
+      // holds the live signal preemptions. Running this legacy controller too
+      // would double-register preemptions on the same TrafficSignalPost objects.
+      if (this.smartRouting && !this.simDriven) {
         this.updateSmartRouting(dt);
       }
 
@@ -1183,7 +1259,41 @@
     }
 
     getActiveRouteJunctions() {
+      // When sim-driven, the live priority-hold set is the source of truth for
+      // the preemption subsystem; the planned junction list is a fallback.
+      if (this.simDriven && this.simBridge && this.simBridge.sim) {
+        const held = this.simBridge.sim.routingController
+          ? this.simBridge.sim.routingController.priorityRequestedJunctions
+          : null;
+        if (held && held.size > 0) return Array.from(held);
+      }
       return this.activeRouteJunctions;
+    }
+
+    /**
+     * Expose the attached simulation's live snapshot for the HUD and the
+     * benchmark engine. Returns null when not sim-driven.
+     */
+    getSimulationSnapshot() {
+      if (!this.simDriven || !this.simBridge) return null;
+      const { sim, ambulanceId } = this.simBridge;
+      const trip = sim.completedTrips.get(ambulanceId);
+      const amb = sim.ambulances.get(ambulanceId);
+      const veh = sim.vehicles.get(ambulanceId);
+      return {
+        tick: sim.tick,
+        time: sim.time,
+        vehicleCount: sim.vehicles.size,
+        collisionViolations: sim.collisionViolations,
+        signalInterventions: sim.signalInterventions,
+        addedWaitTime: sim.totalAddedWaitTime,
+        arrived: !!(trip && trip.state === 'BAY_RELEASED'),
+        travelTimeSec: trip ? trip.travelTimeSec : null,
+        bayKey: trip ? trip.bayKey : null,
+        enRoute: !!amb,
+        edgeId: veh ? veh.edge.id : null,
+        sOnEdge: veh ? veh.s : null,
+      };
     }
 
     /**
