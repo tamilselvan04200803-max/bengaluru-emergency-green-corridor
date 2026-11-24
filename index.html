@@ -140,11 +140,11 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">Avg Moving Speed:</span>
-            <span class="detail-value" id="baseline-avg-speed">14.2 km/h</span>
+            <span class="detail-value" id="baseline-avg-speed">0.0 km/h</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Signal Delays:</span>
-            <span class="detail-value">35-50s / Red</span>
+            <span class="detail-value" id="baseline-signal-delays">--</span>
           </div>
         </div>
       </div>
@@ -164,21 +164,6 @@
           <div class="hero-sub" id="percent-saved-display">0.0% TIME SAVED</div>
         </div>
 
-        <!-- Golden Hour Survival Odds Preserved (+8% per minute saved) -->
-        <div class="card-golden-hour">
-          <div class="golden-hour-header">
-            <span class="golden-icon">❤️</span>
-            <span class="golden-title">GOLDEN HOUR SURVIVAL ODDS</span>
-          </div>
-          <div class="golden-value-wrap">
-            <span class="golden-value" id="golden-hour-odds">+0.0%</span>
-            <span class="golden-sub">(+8% / min saved)</span>
-          </div>
-          <div class="golden-bar-track">
-            <div class="golden-bar-fill" id="golden-hour-progress" style="width: 0%;"></div>
-          </div>
-        </div>
-
         <div class="card-details-center">
           <div class="detail-badge" id="haltReductionBadge">
             <span class="badge-num" id="halts-avoided-count">0</span>
@@ -187,6 +172,14 @@
           <div class="detail-badge" id="speed-boost-badge">
             <span class="badge-num" id="speed-boost-display">+0%</span>
             <span class="badge-text">Speed Boost</span>
+          </div>
+          <div class="detail-badge" id="reroute-badge">
+            <span class="badge-num" id="reroute-count">0</span>
+            <span class="badge-text">Reroutes</span>
+          </div>
+          <div class="detail-badge" id="signal-intervention-badge">
+            <span class="badge-num" id="signal-intervention-count">0</span>
+            <span class="badge-text">Signal Overrides</span>
           </div>
         </div>
       </div>
@@ -209,11 +202,11 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">Cruising Speed:</span>
-            <span class="detail-value green-text" id="ai-avg-speed">52.8 km/h</span>
+            <span class="detail-value green-text" id="ai-avg-speed">0.0 km/h</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Preemption Wave:</span>
-            <span class="detail-value green-text">300m Horizon</span>
+            <span class="detail-value green-text" id="preemption-horizon">--</span>
           </div>
         </div>
       </div>
@@ -234,6 +227,200 @@
 
   <!-- Floating Toast Notifications -->
   <div id="toast-container"></div>
+
+  <!-- Phase 5 Interactive Controls -->
+  
+  <!-- Minimap with ambulance position, route, congestion heat -->
+  <div id="minimap-container" class="minimap-container">
+    <canvas id="minimap-canvas" width="256" height="256"></canvas>
+    <div class="minimap-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#fff"></span> Ambulance</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#0f0"></span> Route</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f00"></span> Congestion</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#ff0"></span> Signals</span>
+    </div>
+  </div>
+
+  <!-- Congestion Injection Panel -->
+  <div id="congestion-panel" class="control-panel congestion-panel">
+    <div class="panel-header">
+      <h3>🚧 Congestion Injection</h3>
+      <button class="panel-close" data-target="congestion-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="control-row">
+        <label for="congestion-edge-select">Target Edge:</label>
+        <select id="congestion-edge-select">
+          <option value="">-- Select Edge --</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="congestion-type">Type:</label>
+        <select id="congestion-type">
+          <option value="block">Full Blockage</option>
+          <option value="incident">Speed Reduction</option>
+        </select>
+      </div>
+      <div class="control-row" id="speed-factor-row">
+        <label for="speed-factor">Speed Factor:</label>
+        <input type="range" id="speed-factor" min="0.1" max="1.0" step="0.1" value="0.3">
+        <span id="speed-factor-value">0.3</span>
+      </div>
+      <div class="control-row">
+        <label for="congestion-duration">Duration (s):</label>
+        <input type="number" id="congestion-duration" value="60" min="10" max="300">
+      </div>
+      <button id="btn-inject-congestion" class="control-btn primary">Inject Congestion</button>
+      <button id="btn-clear-congestion" class="control-btn secondary">Clear All Congestion</button>
+      <div class="active-congestion-list" id="active-congestion-list"></div>
+    </div>
+  </div>
+
+  <!-- AI Decision Log Panel -->
+  <div id="decision-log-panel" class="control-panel decision-log-panel">
+    <div class="panel-header">
+      <h3>🧠 AI Decision Log</h3>
+      <button class="panel-close" data-target="decision-log-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="log-filters">
+        <label><input type="checkbox" id="filter-tier1" checked> Tier-1 Reroutes</label>
+        <label><input type="checkbox" id="filter-tier2" checked> Tier-2 Priority</label>
+      </div>
+      <div class="log-entries" id="decision-log-entries"></div>
+      <div class="log-stats">
+        <span id="log-tier1-count">Tier-1: 0</span>
+        <span id="log-tier2-count">Tier-2: 0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Virtual Sensor Panel -->
+  <div id="sensor-panel" class="control-panel sensor-panel">
+    <div class="panel-header">
+      <h3>📡 Virtual Sensor Panel</h3>
+      <button class="panel-close" data-target="sensor-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="sensor-info">
+        <div class="sensor-metric">
+          <span class="sensor-label">Clearance Cone:</span>
+          <span class="sensor-value" id="cone-range">80m</span>
+        </div>
+        <div class="sensor-metric">
+          <span class="sensor-label">FOV:</span>
+          <span class="sensor-value" id="cone-fov">40°</span>
+        </div>
+        <div class="sensor-metric">
+          <span class="sensor-label">Targets in Cone:</span>
+          <span class="sensor-value" id="cone-targets">0</span>
+        </div>
+        <div class="sensor-metric">
+          <span class="sensor-label">Yielding Vehicles:</span>
+          <span class="sensor-value" id="yielding-count">0</span>
+        </div>
+      </div>
+      <div class="target-list" id="sensor-target-list"></div>
+      <canvas id="sensor-cone-canvas" width="200" height="200" class="sensor-cone-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Dual Ambulance A vs D Comparison View -->
+  <div id="comparison-panel" class="control-panel comparison-panel">
+    <div class="panel-header">
+      <h3>⚖️ A vs D Comparison</h3>
+      <button class="panel-close" data-target="comparison-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="comparison-grid">
+        <div class="comparison-mode" id="mode-a">
+          <h4>Mode A: Baseline</h4>
+          <div class="metric"><span>Travel Time:</span> <span id="cmp-a-time">--</span></div>
+          <div class="metric"><span>Red Light Wait:</span> <span id="cmp-a-red">--</span></div>
+          <div class="metric"><span>Stops:</span> <span id="cmp-a-stops">--</span></div>
+          <div class="metric"><span>Avg Speed:</span> <span id="cmp-a-speed">--</span></div>
+        </div>
+        <div class="comparison-divider">vs</div>
+        <div class="comparison-mode" id="mode-d">
+          <h4>Mode D: Combined</h4>
+          <div class="metric"><span>Travel Time:</span> <span id="cmp-d-time">--</span></div>
+          <div class="metric"><span>Red Light Wait:</span> <span id="cmp-d-red">--</span></div>
+          <div class="metric"><span>Stops:</span> <span id="cmp-d-stops">--</span></div>
+          <div class="metric"><span>Avg Speed:</span> <span id="cmp-d-speed">--</span></div>
+        </div>
+      </div>
+      <div class="comparison-deltas">
+        <h4>Deltas (D - A)</h4>
+        <div class="metric positive"><span>Time Saved:</span> <span id="cmp-delta-time">--</span></div>
+        <div class="metric positive"><span>Stops Avoided:</span> <span id="cmp-delta-stops">--</span></div>
+        <div class="metric positive"><span>Speed Gain:</span> <span id="cmp-delta-speed">--</span></div>
+      </div>
+      <button id="btn-run-comparison" class="control-btn primary">Run A/B/C/D Experiment</button>
+    </div>
+  </div>
+
+  <!-- Replay/Seed/Mode Controls -->
+  <div id="replay-panel" class="control-panel replay-panel">
+    <div class="panel-header">
+      <h3>🎮 Replay & Simulation Controls</h3>
+      <button class="panel-close" data-target="replay-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <div class="control-row">
+        <label for="seed-slider">Random Seed:</label>
+        <input type="range" id="seed-slider" min="1" max="10000" value="42">
+        <span id="seed-value">42</span>
+      </div>
+      <div class="control-row">
+        <label for="demand-profile">Demand Profile:</label>
+        <select id="demand-profile">
+          <option value="peak">Peak (150 veh/min)</option>
+          <option value="off_peak">Off-Peak (45 veh/min)</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label for="sim-speed">Simulation Speed:</label>
+        <input type="range" id="sim-speed" min="0.1" max="5.0" step="0.1" value="1.0">
+        <span id="sim-speed-value">1.0x</span>
+      </div>
+      <div class="control-row">
+        <label for="sim-duration">Duration (s):</label>
+        <input type="number" id="sim-duration" value="600" min="60" max="3600">
+      </div>
+      <div class="replay-controls">
+        <button id="btn-reset-sim" class="control-btn secondary">Reset Simulation</button>
+        <button id="btn-pause-sim" class="control-btn secondary">Pause</button>
+        <button id="btn-resume-sim" class="control-btn primary">Resume</button>
+        <button id="btn-step-sim" class="control-btn secondary">Step (0.1s)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Experiment Export Controls -->
+  <div id="export-panel" class="control-panel export-panel">
+    <div class="panel-header">
+      <h3>📊 Experiment Export</h3>
+      <button class="panel-close" data-target="export-panel">×</button>
+    </div>
+    <div class="panel-content">
+      <p>Export controlled A/B/C/D experiment results for analysis.</p>
+      <button id="btn-export-json" class="control-btn primary">Export JSON</button>
+      <button id="btn-export-csv" class="control-btn secondary">Export CSV</button>
+      <button id="btn-export-console" class="control-btn secondary">Print to Console</button>
+      <div id="export-status"></div>
+    </div>
+  </div>
+
+  <!-- Control Panel Toggles (Dock Bar) -->
+  <div id="panel-dock" class="panel-dock">
+    <button class="dock-btn" data-panel="minimap-container" title="Minimap (M)">🗺️</button>
+    <button class="dock-btn" data-panel="congestion-panel" title="Congestion Injection (C)">🚧</button>
+    <button class="dock-btn" data-panel="decision-log-panel" title="AI Decision Log (L)">🧠</button>
+    <button class="dock-btn" data-panel="sensor-panel" title="Virtual Sensor (V)">📡</button>
+    <button class="dock-btn" data-panel="comparison-panel" title="A vs D Comparison (D)">⚖️</button>
+    <button class="dock-btn" data-panel="replay-panel" title="Replay Controls (P)">🎮</button>
+    <button class="dock-btn" data-panel="export-panel" title="Experiment Export (E)">📊</button>
+  </div>
 
   <!-- Core Application Scripts in Execution Order -->
   <script src="js/config.js"></script>

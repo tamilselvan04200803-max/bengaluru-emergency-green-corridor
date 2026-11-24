@@ -215,6 +215,14 @@
       // loop so the live app uses the same authoritative router, signal
       // machine and bay state machine as the Node test suites.
       this.initSimulation();
+
+      // Phase 5: Initialize interactive control panels after UI and sim are ready
+      if (this.ui && typeof this.ui.initPhase5Controls === 'function') {
+        // Defer to next frame to ensure DOM is fully ready
+        requestAnimationFrame(() => {
+          this.ui.initPhase5Controls();
+        });
+      }
     }
 
     /**
@@ -222,8 +230,11 @@
      * and dispatches the ambulance onto a router-computed route. The engine
      * is the single authority over ambulance kinematics; the AmbulanceManager
      * mirrors its state onto the Three.js mesh each frame.
+     * @param {number} [seed=42] - Random seed for deterministic simulation
+     * @param {string} [demandProfile='peak'] - 'peak' or 'off_peak'
+     * @param {number} [durationSec=600] - Simulation duration
      */
-    initSimulation() {
+    initSimulation(seed = 42, demandProfile = 'peak', durationSec = 600) {
       // network.js / simulation.js publish a namespace object on window
       // ({SimulationNetwork, SimulationEdge, ...}) rather than the bare class,
       // so resolve the constructors off the namespace when present.
@@ -245,10 +256,10 @@
         const net = new SimulationNetworkCtor(NETWORK_DATA);
         this.simNetwork = net;
 
-        const seed = (typeof CONFIG !== 'undefined' && CONFIG.SIMULATION) ? CONFIG.SIMULATION.seed : 42;
         this.sim = new SimulationEngineCtor(net, this.signals, seed, this.projection);
-        this.sim.setDemandProfile('peak');
+        this.sim.setDemandProfile(demandProfile);
         this.simSeed = seed;
+        this.simDuration = durationSec;
 
         if (typeof RoutingEngine !== 'undefined') {
           const graph = new RoutingEngine.RoadGraph(NETWORK_DATA, seed);
@@ -608,12 +619,18 @@
         } else {
           this.traffic.update(dt, this.ambulance, this.signals);
         }
+        
+        // Sync civilian vehicles from SimulationEngine if available
+        if (this.sim && typeof this.traffic.syncFromSimulation === 'function') {
+          this.traffic.syncFromSimulation(this.sim);
+        }
       }
 
       if (this.benchmark) {
-        this.benchmark.update(dt, this.ambulance);
+        // Pass simulation engine for live metrics
+        this.benchmark.update(dt, this.ambulance, this.sim);
         if (this.savingsElement && typeof this.benchmark.getMetrics === 'function') {
-          const m = this.benchmark.getMetrics();
+          const m = this.benchmark.getMetrics(this.sim);
           this.savingsElement.innerText = `${m.minutesSaved.toFixed(1)} min`;
         }
       }

@@ -511,6 +511,36 @@
     getPartingWaveOffset() {
       return this.lateralOffset;
     }
+
+    /**
+     * Syncs this CivilianVehicle state from a SimVehicle (SimulationEngine).
+     * Used when the deterministic simulation engine is the authority.
+     * @param {SimVehicle} simVeh
+     */
+    syncFromSimulation(simVeh) {
+      this.id = simVeh.id;
+      this.type = simVeh.cls.id;
+      this.classDef = simVeh.cls;
+      this.distanceAlongRoad = simVeh.s;
+      this.speedMps = simVeh.v;
+      this.speedKmh = simVeh.v * 3.6;
+      this.lateralOffset = 0.0; // Sim vehicles don't have lateral offset
+
+      // Update world position from edge sample
+      const sample = simVeh.edge.sampleAt(simVeh.s);
+      if (this.road && this.road.segments && this.road.segments.length > 0) {
+        // Find the corresponding segment
+        const proj = (typeof window !== 'undefined' && window.projectionInstance) ? window.projectionInstance : null;
+        if (proj) {
+          const world = proj.latLonAltToCartesian(sample.lat, sample.lon, sample.alt);
+          this.position.x = world.x;
+          this.position.y = 0.05; // Slightly above road deck (y=0.0)
+          this.position.z = world.z;
+          this.headingRad = sample.headingRad;
+          this.headingDeg = (this.headingRad * 180.0) / Math.PI;
+        }
+      }
+    }
   }
 
   // ============================================================================
@@ -526,8 +556,11 @@
 
     // Stylized compound box geometry with proportional dimensions
     const geo = new THREE.BoxGeometry(w, h * 0.75, l);
-    // Center elevation so bottom of wheels touches asphalt
-    geo.translate(0, (h * 0.75) / 2 + 0.15, 0);
+    // FIXED: Road deck is at y=0.0, wheels should touch at y=0.0
+    // Vehicle body center at y = (h * 0.75) / 2, so bottom of body at y = 0
+    // But we want wheels at y=0.0, so translate by wheel radius (approx 0.3m)
+    const wheelRadius = 0.3;
+    geo.translate(0, (h * 0.75) / 2 + wheelRadius, 0);
     return geo;
   }
 
@@ -887,6 +920,63 @@
 
     getVehicle(id) {
       return this.vehicles.find(v => v.id === id);
+    }
+
+    /**
+     * Synchronizes the civilian vehicle swarm with the SimulationEngine's live vehicles.
+     * This is called when the deterministic SimulationEngine is the authority.
+     * 
+     * @param {SimulationEngine} sim - The simulation engine instance
+     */
+    syncFromSimulation(sim) {
+      if (!sim || !sim.vehicles) return;
+
+      // Map simulation vehicles to our civilian vehicles
+      // We'll reuse existing CivilianVehicle instances where possible
+      const simVehicles = Array.from(sim.vehicles.values()).filter(v => !v.cls.isEmergency);
+      
+      // If we have fewer vehicles than sim, create new ones
+      // If we have more, we'll only sync the first N
+      const targetCount = Math.min(simVehicles.length, this.maxVehicles);
+      
+      // Reuse or create CivilianVehicle instances
+      for (let i = 0; i < targetCount; i++) {
+        const simVeh = simVehicles[i];
+        
+        if (i < this.vehicles.length) {
+          // Sync existing vehicle
+          this.vehicles[i].syncFromSimulation(simVeh);
+        } else {
+          // Create new vehicle from sim data
+          const road = this._findRoadForEdge(simVeh.edge.id);
+          if (road) {
+            const veh = new CivilianVehicle(simVeh.id, simVeh.cls.id, road, simVeh.laneIndex, simVeh.s);
+            veh.speedMps = simVeh.v;
+            veh.speedKmh = simVeh.v * 3.6;
+            veh.distanceAlongRoad = simVeh.s;
+            this.vehicles.push(veh);
+          }
+        }
+      }
+      
+      // Trim excess vehicles
+      if (this.vehicles.length > targetCount) {
+        this.vehicles.length = targetCount;
+      }
+    }
+
+    /**
+     * Helper to find road segment matching a simulation edge.
+     * @param {string} edgeId
+     */
+    _findRoadForEdge(edgeId) {
+      for (const road of this.roads.values()) {
+        if (road.id === edgeId || road.feature?.properties?.id === edgeId) {
+          return road;
+        }
+      }
+      // Fallback: return first road
+      return this.roads.values().next().value;
     }
   }
 

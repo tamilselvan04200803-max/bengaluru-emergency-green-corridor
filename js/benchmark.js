@@ -163,10 +163,42 @@
 
     /**
      * Returns live metrics snapshot for the current simulation state.
+     * If a SimulationEngine is provided, uses its live data. Otherwise uses internal parallel model.
      * Complies with Interface Contract 5 and Tier 1-4 test assertions.
+     * @param {SimulationEngine} [simEngine] - Optional simulation engine for live metrics
      * @returns {Object}
      */
-    getMetrics() {
+    getMetrics(simEngine = null) {
+      if (simEngine && typeof simEngine.getMetrics === 'function') {
+        // Use live metrics from deterministic SimulationEngine
+        const simMetrics = simEngine.getMetrics();
+        return Object.assign({}, BenchmarkEngine.calculateMetrics(
+          simMetrics.baselineTimeSec,
+          simMetrics.aiCorridorTimeSec,
+          simMetrics.baselineHalts,
+          simMetrics.aiHalts,
+          simMetrics.ambulanceDistanceKm > 0 ? simMetrics.ambulanceDistanceKm : this.totalRouteLengthKm
+        ), {
+          currentSpeedKmh: Math.round(simMetrics.ambulanceSpeedKmh * 10) / 10,
+          distanceTraveledKm: Math.round(simMetrics.ambulanceDistanceKm * 100) / 100,
+          totalRouteLengthKm: this.totalRouteLengthKm,
+          isAiCorridorActive: this.isAiCorridorActive,
+          runsCompleted: this.runHistory.length,
+          // Extra live data from simulation
+          edgeCongestionMap: simMetrics.edgeCongestionMap || {},
+          totalCongestionEdges: simMetrics.totalCongestionEdges || 0,
+          signalInterventions: simMetrics.signalInterventions || 0,
+          routeClearRate: simMetrics.routeClearRate || 0,
+          decisionLog: simMetrics.decisionLog || [],
+          ambulanceRedLightWaitSec: simMetrics.ambulanceRedLightWaitSec || 0,
+          ambulanceTravelTimeSec: simMetrics.ambulanceTravelTimeSec || 0,
+          preemptionHorizon: 250,
+          reroutes: (simMetrics.decisionLog || []).filter(d => d.tier === 'Tier-1').length,
+          signalInterventions: simMetrics.signalInterventions || 0,
+        });
+      }
+      
+      // Fallback to internal parallel model
       const calc = BenchmarkEngine.calculateMetrics(
         this.baselineTimeSec,
         this.aiCorridorTimeSec,
@@ -180,7 +212,10 @@
         distanceTraveledKm: Math.round(this.distanceTraveledKm * 100) / 100,
         totalRouteLengthKm: this.totalRouteLengthKm,
         isAiCorridorActive: this.isAiCorridorActive,
-        runsCompleted: this.runHistory.length
+        runsCompleted: this.runHistory.length,
+        preemptionHorizon: 250,
+        reroutes: 0,
+        signalInterventions: 0,
       });
     }
 
@@ -190,9 +225,10 @@
      *
      * @param {number} dt - Frame delta in seconds
      * @param {Object} ambulance - Active ambulance controller instance
+     * @param {SimulationEngine} [simEngine] - Optional simulation engine for live metrics
      * @returns {Object} Updated metrics
      */
-    update(dt = 0.016, ambulance = null) {
+    update(dt = 0.016, ambulance = null, simEngine = null) {
       const safeDt = Math.max(0.0, Math.min(Number(dt) || 0.016, 3600.0));
 
       let speedKmh = 0.0;
@@ -261,19 +297,20 @@
         this.nextHaltDistKm = 0.45;
       }
 
-      return this.getMetrics();
+      return this.getMetrics(simEngine);
     }
 
     /**
      * Records a completed transit run for cumulative multi-run telemetry aggregation.
      * @param {Object|number} [runOrLength] - Run metrics object or route length
+     * @param {SimulationEngine} [simEngine] - Optional simulation engine for live metrics
      */
-    recordRun(runOrLength = null) {
+    recordRun(runOrLength = null, simEngine = null) {
       let runMetrics;
       if (runOrLength && typeof runOrLength === 'object') {
         runMetrics = Object.assign({}, runOrLength);
       } else {
-        runMetrics = this.getMetrics();
+        runMetrics = this.getMetrics(simEngine);
       }
 
       this.runHistory.push(runMetrics);
@@ -283,10 +320,11 @@
     /**
      * Generates structured JSON export of benchmark performance and cumulative multi-run analytics.
      * Satisfies Tier 4 Test T4.5 schema requirements.
+     * @param {SimulationEngine} [simEngine] - Optional simulation engine for live metrics
      * @returns {Object} Structured benchmark telemetry export
      */
-    exportBenchmarkData() {
-      const current = this.getMetrics();
+    exportBenchmarkData(simEngine = null) {
+      const current = this.getMetrics(simEngine);
       const hasHistory = this.runHistory.length > 0;
       const runs = hasHistory ? this.runHistory : [current];
 

@@ -351,7 +351,7 @@
         const leftZ = p.z + n.z * (halfW * m);
         const rightX = p.x - n.x * (halfW * m);
         const rightZ = p.z - n.z * (halfW * m);
-        const y = p.y + 0.02; // Offset slightly above terrain to prevent z-fighting
+        const y = 0.0; // FIXED: Road deck at exactly y=0.0; ground plane is at y=-0.3
 
         positions.push(leftX, y, leftZ);
         uvs.push(0.0, accumDist / 10.0);
@@ -408,8 +408,8 @@
           const outerX = p.x + n.x * outerDist;
           const outerZ = p.z + n.z * outerDist;
 
-          const yBottom = p.y + 0.02;
-          const yTop = p.y + 0.02 + curbH;
+          const yBottom = 0.0; // FIXED: Road deck at y=0.0
+          const yTop = curbH;  // 0.15m curb height
 
           // 3 vertices per polyline step for curb:
           // 0: Bottom inner riser
@@ -479,7 +479,7 @@
           const innerZ = p.z + n.z * innerDist;
           const outerX = p.x + n.x * outerDist;
           const outerZ = p.z + n.z * outerDist;
-          const y = p.y + 0.17; // Flush with curb top
+          const y = 0.15; // FIXED: Sidewalk at curb top level (y=0.15)
 
           positions.push(innerX, y, innerZ);
           uvs.push(0.0, accumDist / 2.0);
@@ -539,7 +539,7 @@
             const lz = p.z + n.z * (offset - stripeW / 2) * m;
             const rx = p.x + n.x * (offset + stripeW / 2) * m;
             const rz = p.z + n.z * (offset + stripeW / 2) * m;
-            const y = p.y + 0.035; // 3.5cm above road to eliminate z-fighting
+            const y = 0.04; // FIXED: Yellow centerlines at y=0.04 (4cm above road deck at y=0.0)
 
             yellowPositions.push(lx, y, lz, rx, y, rz);
           }
@@ -581,7 +581,7 @@
             const startZ = p1.z + dirZ * cur + normZ * off;
             const endX = p1.x + dirX * (cur + dashLen) + normX * off;
             const endZ = p1.z + dirZ * (cur + dashLen) + normZ * off;
-            const y = p1.y + 0.035;
+            const y = 0.04; // FIXED: Lane dividers at y=0.04 (4cm above road deck at y=0.0)
 
             const baseIdx = whitePositions.length / 3;
 
@@ -591,9 +591,9 @@
             const v1z = startZ - normZ * (stripeW / 2);
 
             const v2x = endX + normX * (stripeW / 2);
-            const v2z = endX + normZ * (stripeW / 2);
+            const v2z = endZ + normZ * (stripeW / 2); // FIXED: was endX, should be endZ
             const v3x = endX - normX * (stripeW / 2);
-            const v3z = endX - normZ * (stripeW / 2);
+            const v3z = endZ - normZ * (stripeW / 2); // FIXED: was endX, should be endZ
 
             whitePositions.push(v0x, y, v0z, v1x, y, v1z, v2x, y, v2z, v3x, y, v3z);
             whiteIndices.push(baseIdx, baseIdx + 1, baseIdx + 2, baseIdx + 1, baseIdx + 3, baseIdx + 2);
@@ -613,7 +613,7 @@
         const barStartZ = stopCenterZ + normZ * 0.2;
         const barEndX = stopCenterX + normX * (halfW - 0.2);
         const barEndZ = stopCenterZ + normZ * (halfW - 0.2);
-        const yStop = p2.y + 0.04;
+        const yStop = 0.08; // FIXED: Stop bars at y=0.08 (8cm above road deck at y=0.0)
 
         const s0x = barStartX - dirX * (barThickness / 2);
         const s0z = barStartZ - dirZ * (barThickness / 2);
@@ -793,6 +793,9 @@
 
     /**
      * Builds procedural buildings flanking both sides of the road corridor network.
+     * FIXED: Enforces minimum clearance from road centerline (roadHalfWidth + 6m).
+     * Uses clean low-profile context blocks instead of uniform tall cubes.
+     * Hospital complexes are handled separately.
      */
     static buildCorridorBuildings(roadFeatures, projection) {
       const geometriesByClass = {
@@ -802,6 +805,27 @@
         hospital: []
       };
       const rooftopGeometries = [];
+
+      // Collect all road segments for spatial clearance checking
+      const roadSegments = [];
+      for (const feat of roadFeatures) {
+        const coords = feat.geometry.coordinates;
+        const lanes = feat.properties.lanes || 4;
+        const roadW = lanes * 3.5;
+        const halfW = roadW / 2.0;
+        const pts = coords.map(c => projection.latLonAltToCartesian(c[1], c[0], c[2]));
+        for (let i = 0; i < pts.length - 1; i++) {
+          roadSegments.push({
+            p1: pts[i],
+            p2: pts[i + 1],
+            halfW: halfW,
+            lanes: lanes
+          });
+        }
+      }
+
+      // Minimum clearance from road centerline = roadHalfWidth + 6m (task requirement)
+      const MIN_CLEARANCE_FACTOR = 1.0; // We'll add 6m to halfW
 
       for (const feat of roadFeatures) {
         const coords = feat.geometry.coordinates;
@@ -817,7 +841,7 @@
           const segDx = p2.x - p1.x;
           const segDz = p2.z - p1.z;
           const segLen = Math.hypot(segDx, segDz);
-          if (segLen < 25.0) continue;
+          if (segLen < 30.0) continue; // Skip very short segments
 
           const dirX = segDx / segLen;
           const dirZ = segDz / segLen;
@@ -825,55 +849,63 @@
           const normZ = dirX;
           const roadAngle = Math.atan2(dirX, dirZ);
 
-          const step = 45.0;
-          let cur = 15.0;
+          // FIXED: Larger step (80m) for lower building density, cleaner look
+          const step = 80.0;
+          let cur = 20.0;
 
-          while (cur + 30.0 < segLen) {
+          while (cur + 40.0 < segLen) {
             const midX = p1.x + dirX * cur;
             const midZ = p1.z + dirZ * cur;
 
-            const bWidth = 32.0;
-            const bDepth = 22.0;
+            // FIXED: Smaller, lower buildings for clean context
+            const bWidth = 24.0 + (Math.random() * 16);  // 24-40m
+            const bDepth = 18.0 + (Math.random() * 12);  // 18-30m
 
-            // Height and facade class based on road tier
-            let bHeight = 18.0;
-            let facadeClass = 'commercial';
+            // Height and facade class based on road tier - MUCH LOWER
+            let bHeight = 8.0 + (Math.random() * 10);  // 8-18m (was 12-60m)
+            let facadeClass = 'heritage';
 
             if (lanes >= 6) {
-              bHeight = 35.0 + ((cur * 13) % 25); // 35m to 60m
+              bHeight = 15.0 + (Math.random() * 20); // 15-35m
               facadeClass = 'commercial';
             } else if (lanes === 4) {
-              bHeight = 18.0 + ((cur * 7) % 22); // 18m to 40m
-              facadeClass = (cur % 3 === 0) ? 'civic' : 'commercial';
+              bHeight = 10.0 + (Math.random() * 15); // 10-25m
+              facadeClass = (Math.random() < 0.3) ? 'civic' : 'commercial';
             } else {
-              bHeight = 12.0 + ((cur * 5) % 15); // 12m to 27m
+              bHeight = 8.0 + (Math.random() * 10);  // 8-18m
               facadeClass = 'heritage';
             }
 
-            const setbackDist = halfW + 5.25 + bDepth / 2.0; // Sidewalk + curb + setback
+            // FIXED: Minimum clearance = roadHalfWidth + 6m (safety buffer from road)
+            const minClearance = halfW + 6.0;
+            // Setback = clearance + sidewalk (2m) + curb (0.25m) + half building depth
+            const setbackDist = minClearance + 2.25 + bDepth / 2.0;
 
-            // Left side parcel
+            // Check left side clearance against ALL road segments
             const leftX = midX + normX * setbackDist;
             const leftZ = midZ + normZ * setbackDist;
-            geometriesByClass[facadeClass].push(
-              this.createBoxBuildingGeometry(leftX, leftZ, bWidth, bDepth, bHeight, roadAngle)
-            );
+            if (this._checkBuildingClearance(leftX, leftZ, bWidth, bDepth, roadAngle, roadSegments, halfW)) {
+              geometriesByClass[facadeClass].push(
+                this.createBoxBuildingGeometry(leftX, leftZ, bWidth, bDepth, bHeight, roadAngle)
+              );
+              // Rooftop structures
+              const roofBox = new THREE.BoxGeometry(bWidth * 0.35, 2.5, bDepth * 0.35);
+              roofBox.translate(leftX, bHeight + 1.25, leftZ);
+              rooftopGeometries.push(roofBox);
+            }
 
-            // Right side parcel
+            // Check right side clearance
             const rightX = midX - normX * setbackDist;
             const rightZ = midZ - normZ * setbackDist;
-            geometriesByClass[facadeClass].push(
-              this.createBoxBuildingGeometry(rightX, rightZ, bWidth, bDepth, bHeight, roadAngle)
-            );
-
-            // Rooftop structures (Penthouse box + Water tank)
-            const roofBox = new THREE.BoxGeometry(bWidth * 0.4, 3.5, bDepth * 0.4);
-            roofBox.translate(leftX, bHeight + 1.75, leftZ);
-            rooftopGeometries.push(roofBox);
-
-            const tank = new THREE.CylinderGeometry(1.2, 1.2, 2.0, 8);
-            tank.translate(leftX + 4.0, bHeight + 1.0, leftZ + 4.0);
-            rooftopGeometries.push(tank);
+            if (this._checkBuildingClearance(rightX, rightZ, bWidth, bDepth, roadAngle, roadSegments, halfW)) {
+              geometriesByClass[facadeClass].push(
+                this.createBoxBuildingGeometry(rightX, rightZ, bWidth, bDepth, bHeight, roadAngle)
+              );
+              // Rooftop structures
+              const roofBox = new THREE.BoxGeometry(bWidth * 0.35, 2.5, bDepth * 0.35);
+              roofBox.translate(rightX, bHeight + 1.25, rightZ);
+              rooftopGeometries.push(roofBox);
+            }
 
             cur += step;
           }
@@ -881,6 +913,68 @@
       }
 
       return { geometriesByClass, rooftopGeometries };
+    }
+
+    /**
+     * Checks if a building at (x,z) with given dimensions and rotation
+     * has sufficient clearance from ALL road segments.
+     * Returns true if safe to place, false if too close to any road.
+     */
+    static _checkBuildingClearance(bx, bz, bw, bd, angle, roadSegments, currentRoadHalfW) {
+      // Building corner offsets in local space (before rotation)
+      const hw = bw / 2;
+      const hd = bd / 2;
+      const corners = [
+        { x: -hw, z: -hd },
+        { x: hw, z: -hd },
+        { x: hw, z: hd },
+        { x: -hw, z: hd }
+      ];
+
+      // Rotate corners by road angle
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+      const worldCorners = corners.map(c => ({
+        x: bx + c.x * cosA - c.z * sinA,
+        z: bz + c.x * sinA + c.z * cosA
+      }));
+
+      // Check each corner against all road segments
+      for (const corner of worldCorners) {
+        for (const seg of roadSegments) {
+          // Skip checking against the current road segment we're building alongside
+          // (we're already at the correct setback from this road)
+          if (seg.halfW === currentRoadHalfW) {
+            // Still need to check distance to THIS road segment's centerline
+            const distToSeg = this._pointToSegmentDistance(corner.x, corner.z, seg.p1.x, seg.p1.z, seg.p2.x, seg.p2.z);
+            if (distToSeg < seg.halfW + 6.0) {
+              return false; // Too close to this road
+            }
+          } else {
+            // Check distance to OTHER road segments
+            const distToSeg = this._pointToSegmentDistance(corner.x, corner.z, seg.p1.x, seg.p1.z, seg.p2.x, seg.p2.z);
+            if (distToSeg < seg.halfW + 6.0) {
+              return false; // Too close to another road
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    /**
+     * Distance from point to line segment.
+     */
+    static _pointToSegmentDistance(px, pz, x1, z1, x2, z2) {
+      const dx = x2 - x1;
+      const dz = z2 - z1;
+      const len2 = dx * dx + dz * dz;
+      if (len2 === 0) return Math.hypot(px - x1, pz - z1);
+      let t = ((px - x1) * dx + (pz - z1) * dz) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const projX = x1 + t * dx;
+      const projZ = z1 + t * dz;
+      return Math.hypot(px - projX, pz - projZ);
     }
   }
 
@@ -1165,8 +1259,8 @@
         }
       }
 
-      // 4. Ground Terrain Plane (Base Bengaluru terrain)
-      const groundGeo = new THREE.PlaneGeometry(6000, 4000);
+      // 4. Ground Terrain Plane (Base Bengaluru terrain) - LOWERED to y=-0.3 to prevent z-fighting with roads at y=0.02
+      const groundGeo = new THREE.PlaneGeometry(8000, 6000);
       groundGeo.rotateX(-Math.PI / 2);
       const groundMat = new THREE.MeshStandardMaterial({
         color: 0x141820,
@@ -1175,7 +1269,7 @@
         name: 'ground'
       });
       const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.position.y = -0.05;
+      ground.position.y = -0.3; // FIXED: Lowered from -0.05 to -0.3 for proper vertical layering
       ground.receiveShadow = true;
       group.add(ground);
       this.meshes.ground = ground;

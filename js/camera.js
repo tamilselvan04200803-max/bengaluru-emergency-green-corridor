@@ -33,7 +33,7 @@
       lookDamping: 8.0
     },
     COCKPIT: {
-      forwardOffset: 0.75,
+      forwardOffset: 1.55, // FIXED: Driver's eye position ~1.55m ahead of vehicle center (cab center at z=1.6 local)
       height: 1.80,
       lookAhead: 25.0,
       rollCoupling: 0.95,

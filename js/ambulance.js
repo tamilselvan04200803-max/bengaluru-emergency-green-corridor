@@ -256,7 +256,8 @@
       if (this.waypoints.length > 0) {
         const start = this.waypoints[0];
         this.position.x = start.x;
-        this.position.y = start.y;
+        // FIXED: Road deck is at y=0.0 in Three.js scene. Ambulance wheel centers at y=0.42
+        this.position.y = 0.42;
         this.position.z = start.z;
 
         if (this.waypoints.length > 1) {
@@ -832,7 +833,8 @@
       // Advance position
       this.position.x += Math.sin(this.headingRad) * this.speedMps * dt;
       this.position.z += -Math.cos(this.headingRad) * this.speedMps * dt;
-      this.position.y += (targetPt.y - this.position.y) * Math.min(1.0, dt * 2.0);
+      // FIXED: Road deck is at y=0.0 in Three.js scene. Ambulance wheel centers at y=0.42
+      this.position.y = 0.42;
 
       // Angular velocity for centripetal roll
       const angularVelocityRadS = (deltaAngle * Math.PI / 180.0);
@@ -863,11 +865,12 @@
       if (this.projection) {
         const world = this.projection.latLonAltToCartesian(sample.lat, sample.lon, sample.alt);
         this.position.x = world.x;
-        this.position.y = world.y;
+        // FIXED: Road deck is at y=0.0 in Three.js scene. Ambulance wheel centers at y=0.42
+        this.position.y = 0.42; 
         this.position.z = world.z;
       } else {
         this.position.x = sample.lon;
-        this.position.y = sample.alt;
+        this.position.y = 0.42; // FIXED: Consistent with Three.js scene coords
         this.position.z = sample.lat;
       }
 
@@ -1153,7 +1156,7 @@
       // 2. Synchronize Three.js 3D transforms
       if (this.mesh) {
         this.mesh.position.set(this.position.x, this.position.y, this.position.z);
-        this.mesh.rotation.y = this.headingRad;
+        this.mesh.rotation.y = this.headingRad + Math.PI; // FIXED: Ambulance mesh front is at local +Z, but heading 0 (North) = world -Z. Add PI to align.
 
         if (this.chassisGroup) {
           // Authentic suspension pitch & roll
