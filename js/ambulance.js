@@ -1307,6 +1307,17 @@
     }
 
     /**
+     * Sets the visibility of the ambulance 3D mesh.
+     * Used to hide the ambulance in cockpit/first-person view.
+     * @param {boolean} visible
+     */
+    setMeshVisibility(visible) {
+      if (this.mesh) {
+        this.mesh.visible = visible;
+      }
+    }
+
+    /**
      * Sets the destination hospital and recomputes route
      */
     setDestinationHospital(hospitalId) {

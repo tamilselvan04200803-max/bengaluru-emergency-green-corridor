@@ -8,6 +8,7 @@
  *   Minutes Saved, and Golden Hour Survival Odds Preserved (+8% per min)
  * - Digital Speedometer & Radial Gauge, Telemetry status, Mode indicators
  * - Floating notification toasts & Benchmark JSON export trigger
+ * - Phase 5: 7 Interactive Control Panels with single active drawer mode
  *
  * Browser-global (window.UIManager) & CommonJS / Node.js compatible (UMD).
  */
@@ -42,6 +43,7 @@
       this.lastTelemetryUpdate = 0;
       this.updateIntervalMs = 100; // 10Hz UI refresh (>2Hz requirement for Test T1.4.5)
       this.elements = {};
+      this.activePanel = null; // Single active drawer mode
 
       if (!this.isNode) {
         this.cacheDomElements();
@@ -90,6 +92,8 @@
       this.elements.speedometerValue = document.getElementById('speedometer-value');
       this.elements.telemetryBadge = document.getElementById('telemetry-badge');
       this.elements.btnExportBenchmark = document.getElementById('btn-export-benchmark');
+      this.elements.liveTelemetryCard = document.getElementById('live-telemetry-card');
+      this.elements.liveTelemetryContent = document.getElementById('live-telemetry-content');
     }
 
     /**
@@ -187,11 +191,12 @@
 
       const benchmark = (this.app && this.app.benchmark) ? this.app.benchmark : null;
       const simEngine = (this.app && this.app.sim) ? this.app.sim : null;
-      const metrics = benchmark ? benchmark.getMetrics(simEngine) : null;
+      const metrics = benchmark && simEngine ? benchmark.getMetrics(simEngine) : null;
       const ambulance = (this.app && this.app.ambulance) ? this.app.ambulance : null;
       const speedKmh = (ambulance && typeof ambulance.getSpeedKmh === 'function') ? ambulance.getSpeedKmh() : (metrics ? metrics.currentSpeedKmh : 0.0);
 
       this.renderMetrics(metrics, speedKmh);
+      this.renderLiveTelemetry(metrics, simEngine);
     }
 
     /**
@@ -270,6 +275,68 @@
         const offset = 264 * (1.0 - fraction);
         this.elements.speedDialFill.style.strokeDashoffset = `${offset}`;
       }
+    }
+
+    /**
+     * Renders Live Simulation Telemetry card (replaces right HUD card).
+     * Shows real-time data from SimulationEngine.
+     * @param {Object} m - Metrics snapshot from BenchmarkEngine
+     * @param {SimulationEngine} simEngine - Live simulation engine
+     */
+    renderLiveTelemetry(m, simEngine) {
+      if (!this.elements.liveTelemetryCard || !this.elements.liveTelemetryContent) return;
+      if (!simEngine) return;
+
+      const simMetrics = simEngine.getMetrics ? simEngine.getMetrics() : null;
+      if (!simMetrics) return;
+
+      const html = `
+        <div class="telemetry-row">
+          <span class="telemetry-label">Sim Time:</span>
+          <span class="telemetry-value">${simMetrics.simulationTimeSec?.toFixed(1) || 0.0}s</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Ambulance Speed:</span>
+          <span class="telemetry-value">${simMetrics.ambulanceSpeedKmh?.toFixed(1) || 0.0} km/h</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Distance Traveled:</span>
+          <span class="telemetry-value">${simMetrics.ambulanceDistanceKm?.toFixed(2) || 0.0} km</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Active Signals:</span>
+          <span class="telemetry-value">${simMetrics.activeSignalCount || 0}</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Civilian Vehicles:</span>
+          <span class="telemetry-value">${simMetrics.civilianVehicleCount || 0}</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Congested Edges:</span>
+          <span class="telemetry-value">${simMetrics.totalCongestionEdges || 0}</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Route Clear Rate:</span>
+          <span class="telemetry-value">${((simMetrics.routeClearRate || 0) * 100).toFixed(1)}%</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Signal Overrides:</span>
+          <span class="telemetry-value">${simMetrics.signalInterventions || 0}</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Red Light Wait:</span>
+          <span class="telemetry-value">${(simMetrics.ambulanceRedLightWaitSec || 0).toFixed(1)}s</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Tier-1 Reroutes:</span>
+          <span class="telemetry-value">${(simMetrics.decisionLog || []).filter(d => d.tier === 'Tier-1').length}</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Tier-2 Priority:</span>
+          <span class="telemetry-value">${(simMetrics.decisionLog || []).filter(d => d.tier === 'Tier-2').length}</span>
+        </div>
+      `;
+      this.elements.liveTelemetryContent.innerHTML = html;
     }
 
     /**
@@ -354,932 +421,987 @@
     }
 
     cachePhase5Elements() {
-    // Minimap
-    this.elements.minimapContainer = document.getElementById('minimap-container');
-    this.elements.minimapCanvas = document.getElementById('minimap-canvas');
-    this.elements.minimapCtx = this.elements.minimapCanvas ? this.elements.minimapCanvas.getContext('2d') : null;
+      // Minimap
+      this.elements.minimapContainer = document.getElementById('minimap-container');
+      this.elements.minimapCanvas = document.getElementById('minimap-canvas');
+      this.elements.minimapCtx = this.elements.minimapCanvas ? this.elements.minimapCanvas.getContext('2d') : null;
 
-    // Panel dock buttons
-    this.elements.dockButtons = document.querySelectorAll('.dock-btn');
-    this.elements.panels = {
-      'minimap-container': document.getElementById('minimap-container'),
-      'congestion-panel': document.getElementById('congestion-panel'),
-      'decision-log-panel': document.getElementById('decision-log-panel'),
-      'sensor-panel': document.getElementById('sensor-panel'),
-      'comparison-panel': document.getElementById('comparison-panel'),
-      'replay-panel': document.getElementById('replay-panel'),
-      'export-panel': document.getElementById('export-panel')
-    };
+      // Panel dock buttons
+      this.elements.dockButtons = document.querySelectorAll('.dock-btn');
+      this.elements.panels = {
+        'minimap-container': document.getElementById('minimap-container'),
+        'congestion-panel': document.getElementById('congestion-panel'),
+        'decision-log-panel': document.getElementById('decision-log-panel'),
+        'sensor-panel': document.getElementById('sensor-panel'),
+        'comparison-panel': document.getElementById('comparison-panel'),
+        'replay-panel': document.getElementById('replay-panel'),
+        'export-panel': document.getElementById('export-panel')
+      };
 
-    // Congestion panel
-    this.elements.congestionEdgeSelect = document.getElementById('congestion-edge-select');
-    this.elements.congestionType = document.getElementById('congestion-type');
-    this.elements.speedFactor = document.getElementById('speed-factor');
-    this.elements.speedFactorValue = document.getElementById('speed-factor-value');
-    this.elements.congestionDuration = document.getElementById('congestion-duration');
-    this.elements.btnInjectCongestion = document.getElementById('btn-inject-congestion');
-    this.elements.btnClearCongestion = document.getElementById('btn-clear-congestion');
-    this.elements.activeCongestionList = document.getElementById('active-congestion-list');
+      // Congestion panel
+      this.elements.congestionEdgeSelect = document.getElementById('congestion-edge-select');
+      this.elements.congestionType = document.getElementById('congestion-type');
+      this.elements.speedFactor = document.getElementById('speed-factor');
+      this.elements.speedFactorValue = document.getElementById('speed-factor-value');
+      this.elements.congestionDuration = document.getElementById('congestion-duration');
+      this.elements.btnInjectCongestion = document.getElementById('btn-inject-congestion');
+      this.elements.btnClearCongestion = document.getElementById('btn-clear-congestion');
+      this.elements.activeCongestionList = document.getElementById('active-congestion-list');
 
-    // Decision log panel
-    this.elements.filterTier1 = document.getElementById('filter-tier1');
-    this.elements.filterTier2 = document.getElementById('filter-tier2');
-    this.elements.decisionLogEntries = document.getElementById('decision-log-entries');
-    this.elements.logTier1Count = document.getElementById('log-tier1-count');
-    this.elements.logTier2Count = document.getElementById('log-tier2-count');
+      // Decision log panel
+      this.elements.filterTier1 = document.getElementById('filter-tier1');
+      this.elements.filterTier2 = document.getElementById('filter-tier2');
+      this.elements.decisionLogEntries = document.getElementById('decision-log-entries');
+      this.elements.logTier1Count = document.getElementById('log-tier1-count');
+      this.elements.logTier2Count = document.getElementById('log-tier2-count');
 
-    // Sensor panel
-    this.elements.coneRange = document.getElementById('cone-range');
-    this.elements.coneFov = document.getElementById('cone-fov');
-    this.elements.coneTargets = document.getElementById('cone-targets');
-    this.elements.yieldingCount = document.getElementById('yielding-count');
-    this.elements.sensorTargetList = document.getElementById('sensor-target-list');
-    this.elements.sensorConeCanvas = document.getElementById('sensor-cone-canvas');
-    this.elements.sensorConeCtx = this.elements.sensorConeCanvas ? this.elements.sensorConeCanvas.getContext('2d') : null;
+      // Sensor panel - with explicit defaults for cone range (80m) and FOV (60°)
+      this.elements.coneRange = document.getElementById('cone-range');
+      this.elements.coneFov = document.getElementById('cone-fov');
+      this.elements.coneTargets = document.getElementById('cone-targets');
+      this.elements.yieldingCount = document.getElementById('yielding-count');
+      this.elements.sensorTargetList = document.getElementById('sensor-target-list');
+      this.elements.sensorConeCanvas = document.getElementById('sensor-cone-canvas');
+      this.elements.sensorConeCtx = this.elements.sensorConeCanvas ? this.elements.sensorConeCanvas.getContext('2d') : null;
 
-    // Comparison panel
-    this.elements.cmpATime = document.getElementById('cmp-a-time');
-    this.elements.cmpARed = document.getElementById('cmp-a-red');
-    this.elements.cmpAStops = document.getElementById('cmp-a-stops');
-    this.elements.cmpASpeed = document.getElementById('cmp-a-speed');
-    this.elements.cmpDTime = document.getElementById('cmp-d-time');
-    this.elements.cmpDRed = document.getElementById('cmp-d-red');
-    this.elements.cmpDStops = document.getElementById('cmp-d-stops');
-    this.elements.cmpDSpeed = document.getElementById('cmp-d-speed');
-    this.elements.cmpDeltaTime = document.getElementById('cmp-delta-time');
-    this.elements.cmpDeltaStops = document.getElementById('cmp-delta-stops');
-    this.elements.cmpDeltaSpeed = document.getElementById('cmp-delta-speed');
-    this.elements.btnRunComparison = document.getElementById('btn-run-comparison');
+      // Comparison panel
+      this.elements.cmpATime = document.getElementById('cmp-a-time');
+      this.elements.cmpARed = document.getElementById('cmp-a-red');
+      this.elements.cmpAStops = document.getElementById('cmp-a-stops');
+      this.elements.cmpASpeed = document.getElementById('cmp-a-speed');
+      this.elements.cmpDTime = document.getElementById('cmp-d-time');
+      this.elements.cmpDRed = document.getElementById('cmp-d-red');
+      this.elements.cmpDStops = document.getElementById('cmp-d-stops');
+      this.elements.cmpDSpeed = document.getElementById('cmp-d-speed');
+      this.elements.cmpDeltaTime = document.getElementById('cmp-delta-time');
+      this.elements.cmpDeltaStops = document.getElementById('cmp-delta-stops');
+      this.elements.cmpDeltaSpeed = document.getElementById('cmp-delta-speed');
+      this.elements.btnRunComparison = document.getElementById('btn-run-comparison');
+      this.elements.comparisonPlaceholder = document.getElementById('comparison-placeholder');
 
-    // Replay panel
-    this.elements.seedSlider = document.getElementById('seed-slider');
-    this.elements.seedValue = document.getElementById('seed-value');
-    this.elements.demandProfile = document.getElementById('demand-profile');
-    this.elements.simSpeed = document.getElementById('sim-speed');
-    this.elements.simSpeedValue = document.getElementById('sim-speed-value');
-    this.elements.simDuration = document.getElementById('sim-duration');
-    this.elements.btnResetSim = document.getElementById('btn-reset-sim');
-    this.elements.btnPauseSim = document.getElementById('btn-pause-sim');
-    this.elements.btnResumeSim = document.getElementById('btn-resume-sim');
-    this.elements.btnStepSim = document.getElementById('btn-step-sim');
+      // Replay panel
+      this.elements.seedSlider = document.getElementById('seed-slider');
+      this.elements.seedValue = document.getElementById('seed-value');
+      this.elements.demandProfile = document.getElementById('demand-profile');
+      this.elements.simSpeed = document.getElementById('sim-speed');
+      this.elements.simSpeedValue = document.getElementById('sim-speed-value');
+      this.elements.simDuration = document.getElementById('sim-duration');
+      this.elements.btnResetSim = document.getElementById('btn-reset-sim');
+      this.elements.btnPauseSim = document.getElementById('btn-pause-sim');
+      this.elements.btnResumeSim = document.getElementById('btn-resume-sim');
+      this.elements.btnStepSim = document.getElementById('btn-step-sim');
 
-    // Export panel
-    this.elements.btnExportJson = document.getElementById('btn-export-json');
-    this.elements.btnExportCsv = document.getElementById('btn-export-csv');
-    this.elements.btnExportConsole = document.getElementById('btn-export-console');
-    this.elements.exportStatus = document.getElementById('export-status');
-  }
-
-  initPhase5EventListeners() {
-    // Panel dock toggles
-    this.elements.dockButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const panelId = btn.dataset.panel;
-        this.togglePanel(panelId);
-        btn.classList.toggle('active', this.isPanelVisible(panelId));
-      });
-    });
-
-    // Panel close buttons
-    document.querySelectorAll('.panel-close').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const panelId = btn.dataset.target;
-        this.hidePanel(panelId);
-        const dockBtn = document.querySelector(`.dock-btn[data-panel="${panelId}"]`);
-        if (dockBtn) dockBtn.classList.remove('active');
-      });
-    });
-
-    // Congestion panel
-    if (this.elements.speedFactor) {
-      this.elements.speedFactor.addEventListener('input', (e) => {
-        if (this.elements.speedFactorValue) {
-          this.elements.speedFactorValue.textContent = parseFloat(e.target.value).toFixed(1);
-        }
-      });
+      // Export panel
+      this.elements.btnExportJson = document.getElementById('btn-export-json');
+      this.elements.btnExportCsv = document.getElementById('btn-export-csv');
+      this.elements.btnExportConsole = document.getElementById('btn-export-console');
+      this.elements.exportStatus = document.getElementById('export-status');
     }
 
-    if (this.elements.congestionType) {
-      this.elements.congestionType.addEventListener('change', (e) => {
-        const speedFactorRow = document.getElementById('speed-factor-row');
-        if (speedFactorRow) {
-          speedFactorRow.style.display = e.target.value === 'incident' ? 'flex' : 'none';
-        }
-      });
-    }
-
-    if (this.elements.btnInjectCongestion) {
-      this.elements.btnInjectCongestion.addEventListener('click', () => this.injectCongestion());
-    }
-
-    if (this.elements.btnClearCongestion) {
-      this.elements.btnClearCongestion.addEventListener('click', () => this.clearAllCongestion());
-    }
-
-    // Decision log filters
-    if (this.elements.filterTier1) {
-      this.elements.filterTier1.addEventListener('change', () => this.renderDecisionLog());
-    }
-    if (this.elements.filterTier2) {
-      this.elements.filterTier2.addEventListener('change', () => this.renderDecisionLog());
-    }
-
-    // Comparison panel
-    if (this.elements.btnRunComparison) {
-      this.elements.btnRunComparison.addEventListener('click', () => this.runComparisonExperiment());
-    }
-
-    // Replay panel
-    if (this.elements.seedSlider) {
-      this.elements.seedSlider.addEventListener('input', (e) => {
-        if (this.elements.seedValue) {
-          this.elements.seedValue.textContent = e.target.value;
-        }
-      });
-    }
-
-    if (this.elements.simSpeed) {
-      this.elements.simSpeed.addEventListener('input', (e) => {
-        if (this.elements.simSpeedValue) {
-          this.elements.simSpeedValue.textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
-        }
-        if (this.app && this.app.sim) {
-          this.app.sim.setTimeScale(parseFloat(e.target.value));
-        }
-      });
-    }
-
-    if (this.elements.btnResetSim) {
-      this.elements.btnResetSim.addEventListener('click', () => this.resetSimulation());
-    }
-
-    if (this.elements.btnPauseSim) {
-      this.elements.btnPauseSim.addEventListener('click', () => this.pauseSimulation());
-    }
-
-    if (this.elements.btnResumeSim) {
-      this.elements.btnResumeSim.addEventListener('click', () => this.resumeSimulation());
-    }
-
-    if (this.elements.btnStepSim) {
-      this.elements.btnStepSim.addEventListener('click', () => this.stepSimulation());
-    }
-
-    // Export panel
-    if (this.elements.btnExportJson) {
-      this.elements.btnExportJson.addEventListener('click', () => this.exportExperiment('json'));
-    }
-
-    if (this.elements.btnExportCsv) {
-      this.elements.btnExportCsv.addEventListener('click', () => this.exportExperiment('csv'));
-    }
-
-    if (this.elements.btnExportConsole) {
-      this.elements.btnExportConsole.addEventListener('click', () => this.exportExperiment('console'));
-    }
-
-    // Keyboard shortcuts for panels
-    const panelKeys = {
-      'KeyM': 'minimap-container',
-      'KeyC': 'congestion-panel',
-      'KeyL': 'decision-log-panel',
-      'KeyV': 'sensor-panel',
-      'KeyD': 'comparison-panel',
-      'KeyP': 'replay-panel',
-      'KeyE': 'export-panel'
-    };
-
-    window.addEventListener('keydown', (e) => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
-      const panelId = panelKeys[e.code];
-      if (panelId) {
-        e.preventDefault();
-        this.togglePanel(panelId);
-        const dockBtn = document.querySelector(`.dock-btn[data-panel="${panelId}"]`);
-        if (dockBtn) dockBtn.classList.toggle('active', this.isPanelVisible(panelId));
-      }
-    });
-  }
-
-  // ============================================================
-  // Panel Management
-  // ============================================================
-
-  togglePanel(panelId) {
-    const panel = this.elements.panels[panelId];
-    if (!panel) return;
-    if (panel.classList.contains('visible')) {
-      this.hidePanel(panelId);
-    } else {
-      this.showPanel(panelId);
-    }
-  }
-
-  showPanel(panelId) {
-    const panel = this.elements.panels[panelId];
-    if (panel) panel.classList.add('visible');
-  }
-
-  hidePanel(panelId) {
-    const panel = this.elements.panels[panelId];
-    if (panel) panel.classList.remove('visible');
-  }
-
-  isPanelVisible(panelId) {
-    const panel = this.elements.panels[panelId];
-    return panel ? panel.classList.contains('visible') : false;
-  }
-
-  // ============================================================
-  // Minimap
-  // ============================================================
-
-  startMinimapRenderLoop() {
-    if (!this.elements.minimapCtx || !this.app) return;
-    const render = () => {
-      this.renderMinimap();
-      requestAnimationFrame(render);
-    };
-    requestAnimationFrame(render);
-  }
-
-  renderMinimap() {
-    const ctx = this.elements.minimapCtx;
-    const canvas = this.elements.minimapCanvas;
-    if (!ctx || !canvas || !this.app) return;
-
-    const proj = this.app.projection;
-    const networkData = this.app.networkData || window.NETWORK_DATA;
-    const bounds = proj ? proj.getNetworkBounds(networkData) : null;
-    if (!bounds) return;
-
-    // Compute transform: world -> canvas
-    const padding = 20;
-    const scaleX = (canvas.width - 2 * padding) / bounds.spanX;
-    const scaleZ = (canvas.height - 2 * padding) / bounds.spanZ;
-    const scale = Math.min(scaleX, scaleZ);
-    const offsetX = padding + (canvas.width - 2 * padding - bounds.spanX * scale) / 2 - bounds.minX * scale;
-    const offsetY = padding + (canvas.height - 2 * padding - bounds.spanZ * scale) / 2 - bounds.minZ * scale;
-
-    const worldToCanvas = (x, z) => ({
-      x: x * scale + offsetX,
-      y: canvas.height - (z * scale + offsetY)
-    });
-
-    // Draw roads
-    if (networkData && networkData.edges) {
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 2;
-      networkData.edges.forEach(edge => {
-        if (!edge.polyline || edge.polyline.length < 2) return;
-        ctx.beginPath();
-        edge.polyline.forEach((pt, i) => {
-          const pos = worldToCanvas(pt[0] - proj.lon0, pt[1] - proj.lat0);
-          if (i === 0) ctx.moveTo(pos.x, pos.y);
-          else ctx.lineTo(pos.x, pos.y);
+    initPhase5EventListeners() {
+      // Panel dock toggles - SINGLE ACTIVE DRAWER MODE
+      this.elements.dockButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panelId = btn.dataset.panel;
+          this.togglePanel(panelId);
+          btn.classList.toggle('active', this.isPanelVisible(panelId));
         });
-        ctx.stroke();
+      });
+
+      // Panel close buttons
+      document.querySelectorAll('.panel-close').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panelId = btn.dataset.target;
+          this.hidePanel(panelId);
+          const dockBtn = document.querySelector(`.dock-btn[data-panel="${panelId}"]`);
+          if (dockBtn) dockBtn.classList.remove('active');
+        });
+      });
+
+      // Congestion panel
+      if (this.elements.speedFactor) {
+        this.elements.speedFactor.addEventListener('input', (e) => {
+          if (this.elements.speedFactorValue) {
+            this.elements.speedFactorValue.textContent = parseFloat(e.target.value).toFixed(1);
+          }
+        });
+      }
+
+      if (this.elements.congestionType) {
+        this.elements.congestionType.addEventListener('change', (e) => {
+          const speedFactorRow = document.getElementById('speed-factor-row');
+          if (speedFactorRow) {
+            speedFactorRow.style.display = e.target.value === 'incident' ? 'flex' : 'none';
+          }
+        });
+      }
+
+      if (this.elements.btnInjectCongestion) {
+        this.elements.btnInjectCongestion.addEventListener('click', () => this.injectCongestion());
+      }
+
+      if (this.elements.btnClearCongestion) {
+        this.elements.btnClearCongestion.addEventListener('click', () => this.clearAllCongestion());
+      }
+
+      // Decision log filters
+      if (this.elements.filterTier1) {
+        this.elements.filterTier1.addEventListener('change', () => this.renderDecisionLog());
+      }
+      if (this.elements.filterTier2) {
+        this.elements.filterTier2.addEventListener('change', () => this.renderDecisionLog());
+      }
+
+      // Comparison panel
+      if (this.elements.btnRunComparison) {
+        this.elements.btnRunComparison.addEventListener('click', () => this.runComparisonExperiment());
+      }
+
+      // Replay panel
+      if (this.elements.seedSlider) {
+        this.elements.seedSlider.addEventListener('input', (e) => {
+          if (this.elements.seedValue) {
+            this.elements.seedValue.textContent = e.target.value;
+          }
+        });
+      }
+
+      if (this.elements.simSpeed) {
+        this.elements.simSpeed.addEventListener('input', (e) => {
+          if (this.elements.simSpeedValue) {
+            this.elements.simSpeedValue.textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+          }
+          if (this.app && this.app.sim) {
+            this.app.sim.setTimeScale(parseFloat(e.target.value));
+          }
+        });
+      }
+
+      if (this.elements.btnResetSim) {
+        this.elements.btnResetSim.addEventListener('click', () => this.resetSimulation());
+      }
+
+      if (this.elements.btnPauseSim) {
+        this.elements.btnPauseSim.addEventListener('click', () => this.pauseSimulation());
+      }
+
+      if (this.elements.btnResumeSim) {
+        this.elements.btnResumeSim.addEventListener('click', () => this.resumeSimulation());
+      }
+
+      if (this.elements.btnStepSim) {
+        this.elements.btnStepSim.addEventListener('click', () => this.stepSimulation());
+      }
+
+      // Export panel
+      if (this.elements.btnExportJson) {
+        this.elements.btnExportJson.addEventListener('click', () => this.exportExperiment('json'));
+      }
+
+      if (this.elements.btnExportCsv) {
+        this.elements.btnExportCsv.addEventListener('click', () => this.exportExperiment('csv'));
+      }
+
+      if (this.elements.btnExportConsole) {
+        this.elements.btnExportConsole.addEventListener('click', () => this.exportExperiment('console'));
+      }
+
+      // Keyboard shortcuts for panels
+      const panelKeys = {
+        'KeyM': 'minimap-container',
+        'KeyC': 'congestion-panel',
+        'KeyL': 'decision-log-panel',
+        'KeyV': 'sensor-panel',
+        'KeyD': 'comparison-panel',
+        'KeyP': 'replay-panel',
+        'KeyE': 'export-panel'
+      };
+
+      window.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
+        const panelId = panelKeys[e.code];
+        if (panelId) {
+          e.preventDefault();
+          this.togglePanel(panelId);
+          const dockBtn = document.querySelector(`.dock-btn[data-panel="${panelId}"]`);
+          if (dockBtn) dockBtn.classList.toggle('active', this.isPanelVisible(panelId));
+        }
       });
     }
 
-    // Draw signals
-    if (this.app.signalManager && this.app.signalManager.getAllSignals) {
-      const signals = this.app.signalManager.getAllSignals();
-      signals.forEach(sig => {
-        if (!sig.positionENU) return;
-        const pos = worldToCanvas(sig.positionENU[0], sig.positionENU[2]);
-        const isPreempted = sig.isPreempted || sig.currentPhase === 'PREEMPT_GREEN';
-        ctx.fillStyle = isPreempted ? '#fbbf24' : (sig.currentPhase === 'GREEN' ? '#10b981' : '#ef4444');
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
+    // ============================================================
+    // Panel Management - SINGLE ACTIVE DRAWER MODE
+    // ============================================================
+
+    togglePanel(panelId) {
+      const panel = this.elements.panels[panelId];
+      if (!panel) return;
+      
+      // Single active drawer mode: close any other open panel
+      if (this.activePanel && this.activePanel !== panelId) {
+        this.hidePanel(this.activePanel);
+        const otherBtn = document.querySelector(`.dock-btn[data-panel="${this.activePanel}"]`);
+        if (otherBtn) otherBtn.classList.remove('active');
+      }
+      
+      if (panel.classList.contains('visible')) {
+        this.hidePanel(panelId);
+      } else {
+        this.showPanel(panelId);
+      }
     }
 
-    // Draw ambulance route (green line)
-    if (this.app.ambulance && this.app.ambulance.currentRoute) {
-      const route = this.app.ambulance.currentRoute;
-      if (route && route.length > 1) {
-        ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 4]);
-        ctx.beginPath();
-        route.forEach((edgeId, i) => {
-          const edge = networkData.edges.find(e => e.id === edgeId);
-          if (edge && edge.polyline && edge.polyline.length > 0) {
-            const pt = edge.polyline[0];
-            const pos = worldToCanvas(pt[0] - proj.lon0, pt[1] - proj.lat0);
+    showPanel(panelId) {
+      const panel = this.elements.panels[panelId];
+      if (panel) {
+        panel.classList.add('visible');
+        this.activePanel = panelId;
+      }
+    }
+
+    hidePanel(panelId) {
+      const panel = this.elements.panels[panelId];
+      if (panel) {
+        panel.classList.remove('visible');
+        if (this.activePanel === panelId) {
+          this.activePanel = null;
+        }
+      }
+    }
+
+    isPanelVisible(panelId) {
+      const panel = this.elements.panels[panelId];
+      return panel ? panel.classList.contains('visible') : false;
+    }
+
+    // ============================================================
+    // Minimap
+    // ============================================================
+
+    startMinimapRenderLoop() {
+      if (!this.elements.minimapCtx || !this.app) return;
+      const render = () => {
+        this.renderMinimap();
+        requestAnimationFrame(render);
+      };
+      requestAnimationFrame(render);
+    }
+
+    renderMinimap() {
+      const ctx = this.elements.minimapCtx;
+      const canvas = this.elements.minimapCanvas;
+      if (!ctx || !canvas || !this.app) return;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const proj = this.app.projection;
+      const networkData = this.app.networkData || window.NETWORK_DATA;
+      const bounds = proj ? proj.getNetworkBounds(networkData) : null;
+      if (!bounds) return;
+
+      // Compute transform: world -> canvas with 10% padding
+      const paddingRatio = 0.10;
+      const paddingX = canvas.width * paddingRatio;
+      const paddingY = canvas.height * paddingRatio;
+      const drawWidth = canvas.width - 2 * paddingX;
+      const drawHeight = canvas.height - 2 * paddingY;
+      
+      const scaleX = drawWidth / bounds.spanX;
+      const scaleZ = drawHeight / bounds.spanZ;
+      const scale = Math.min(scaleX, scaleZ);
+      
+      // Center the bounds in the canvas
+      const offsetX = paddingX + (drawWidth - bounds.spanX * scale) / 2 - bounds.minX * scale;
+      const offsetY = paddingY + (drawHeight - bounds.spanZ * scale) / 2 - bounds.minZ * scale;
+
+      const worldToCanvas = (x, z) => ({
+        x: x * scale + offsetX,
+        y: canvas.height - (z * scale + offsetY)
+      });
+
+      // Draw roads (dark charcoal #262d38)
+      if (networkData && networkData.edges) {
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2;
+        networkData.edges.forEach(edge => {
+          if (!edge.polyline || edge.polyline.length < 2) return;
+          ctx.beginPath();
+          edge.polyline.forEach((pt, i) => {
+            const pos = worldToCanvas(pt[0], pt[1]);
             if (i === 0) ctx.moveTo(pos.x, pos.y);
             else ctx.lineTo(pos.x, pos.y);
-          }
+          });
+          ctx.stroke();
         });
-        ctx.stroke();
-        ctx.setLineDash([]);
       }
-    }
 
-    // Draw congestion (red edges)
-    if (this.app.sim && this.app.sim.lastCongestionMap) {
-      const congestionMap = this.app.sim.lastCongestionMap;
-      Object.entries(congestionMap).forEach(([edgeId, data]) => {
-        if (data.travelTimeSec > 30) {
-          const edge = networkData.edges.find(e => e.id === edgeId);
-          if (edge && edge.polyline && edge.polyline.length > 1) {
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 4;
-            ctx.globalAlpha = 0.7;
-            ctx.beginPath();
-            edge.polyline.forEach((pt, i) => {
-              const pos = worldToCanvas(pt[0] - proj.lon0, pt[1] - proj.lat0);
+      // Draw signals
+      if (this.app.signalManager && this.app.signalManager.getAllSignals) {
+        const signals = this.app.signalManager.getAllSignals();
+        signals.forEach(sig => {
+          if (!sig.positionENU) return;
+          const pos = worldToCanvas(sig.positionENU[0], sig.positionENU[2]);
+          const isPreempted = sig.isPreempted || sig.currentPhase === 'PREEMPT_GREEN';
+          ctx.fillStyle = isPreempted ? '#fbbf24' : (sig.currentPhase === 'GREEN' ? '#10b981' : '#ef4444');
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // Draw ambulance route (green line)
+      if (this.app.ambulance && this.app.ambulance.currentRoute) {
+        const route = this.app.ambulance.currentRoute;
+        if (route && route.length > 1) {
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([8, 4]);
+          ctx.beginPath();
+          route.forEach((edgeId, i) => {
+            const edge = networkData.edges.find(e => e.id === edgeId);
+            if (edge && edge.polyline && edge.polyline.length > 0) {
+              const pt = edge.polyline[0];
+              const pos = worldToCanvas(pt[0], pt[1]);
               if (i === 0) ctx.moveTo(pos.x, pos.y);
               else ctx.lineTo(pos.x, pos.y);
-            });
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-          }
+            }
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
-      });
-    }
+      }
 
-    // Draw ambulance position
-    if (this.app.ambulance && this.app.ambulance.mesh && this.app.ambulance.mesh.position) {
-      const pos = this.app.ambulance.mesh.position;
-      const canvasPos = worldToCanvas(pos.x, pos.z);
-      // Ambulance icon (white triangle pointing in heading direction)
-      const heading = this.app.ambulance.currentHeading || 0;
-      ctx.save();
-      ctx.translate(canvasPos.x, canvasPos.y);
-      ctx.rotate(-heading - Math.PI / 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(6, 6);
-      ctx.lineTo(-6, 6);
-      ctx.closePath();
-      ctx.fill();
-      // Inner dot
-      ctx.fillStyle = '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(0, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Draw hospital markers
-    if (networkData && networkData.hospitals) {
-      ctx.fillStyle = '#ef4444';
-      networkData.hospitals.forEach(hosp => {
-        if (!hosp.positionENU) return;
-        const pos = worldToCanvas(hosp.positionENU[0], hosp.positionENU[2]);
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y - 8);
-        ctx.lineTo(pos.x + 6, pos.y + 4);
-        ctx.lineTo(pos.x - 6, pos.y + 4);
-        ctx.closePath();
-        ctx.fill();
-        // Cross
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y - 4);
-        ctx.lineTo(pos.x, pos.y + 2);
-        ctx.moveTo(pos.x - 3, pos.y - 1);
-        ctx.lineTo(pos.x + 3, pos.y - 1);
-        ctx.stroke();
-      });
-    }
-  }
-
-  populateEdgeSelect() {
-    const select = this.elements.congestionEdgeSelect;
-    if (!select || !this.app) return;
-    const networkData = this.app.networkData || window.NETWORK_DATA;
-    if (!networkData || !networkData.edges) return;
-
-    // Clear existing options except first
-    while (select.options.length > 1) {
-      select.remove(1);
-    }
-
-    networkData.edges.forEach(edge => {
-      const option = document.createElement('option');
-      option.value = edge.id;
-      const from = edge.from || edge.source;
-      const to = edge.to || edge.target;
-      option.textContent = `${edge.id} (${from} → ${to}, ${(edge.length || 0).toFixed(0)}m)`;
-      select.appendChild(option);
-    });
-  }
-
-  // ============================================================
-  // Congestion Injection
-  // ============================================================
-
-  injectCongestion() {
-    if (!this.app || !this.app.sim) return;
-    const edgeId = this.elements.congestionEdgeSelect.value;
-    const type = this.elements.congestionType.value;
-    const duration = parseFloat(this.elements.congestionDuration.value) || 60;
-    const speedFactor = parseFloat(this.elements.speedFactor.value) || 0.3;
-
-    if (!edgeId) {
-      this.showToast('Please select an edge for congestion injection', 'warning');
-      return;
-    }
-
-    this.app.sim.injectCongestion(edgeId, type, duration, speedFactor);
-    this.showToast(`Congestion injected on ${edgeId} (${type}, ${duration}s)`, 'success');
-    this.renderActiveCongestionList();
-  }
-
-  clearAllCongestion() {
-    if (!this.app || !this.app.sim) return;
-    this.app.sim.clearAllCongestion();
-    this.showToast('All congestion cleared', 'info');
-    this.renderActiveCongestionList();
-  }
-
-  renderActiveCongestionList() {
-    const list = this.elements.activeCongestionList;
-    if (!list || !this.app || !this.app.sim) return;
-
-    const congestionMap = this.app.sim.activeCongestion || {};
-    list.innerHTML = '';
-
-    Object.entries(congestionMap).forEach(([edgeId, data]) => {
-      const item = document.createElement('div');
-      item.className = 'congestion-item';
-      item.innerHTML = `
-        <div class="congestion-item-info">
-          <span class="congestion-item-edge">${edgeId}</span>
-          <span class="congestion-item-type">${data.type} - ${data.remainingSec.toFixed(0)}s remaining</span>
-        </div>
-        <button class="congestion-item-remove" data-edge="${edgeId}">×</button>
-      `;
-      list.appendChild(item);
-    });
-
-    // Add remove handlers
-    list.querySelectorAll('.congestion-item-remove').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const edgeId = e.target.dataset.edge;
-        if (this.app && this.app.sim) {
-          this.app.sim.removeCongestion(edgeId);
-          this.renderActiveCongestionList();
-        }
-      });
-    });
-  }
-
-  // ============================================================
-  // AI Decision Log
-  // ============================================================
-
-  startDecisionLogPolling() {
-    // Poll every 500ms for new decisions
-    setInterval(() => this.renderDecisionLog(), 500);
-  }
-
-  renderDecisionLog() {
-    const entries = this.elements.decisionLogEntries;
-    const tier1Count = this.elements.logTier1Count;
-    const tier2Count = this.elements.logTier2Count;
-    if (!entries || !this.app || !this.app.sim) return;
-
-    const log = this.app.sim.decisionLog || [];
-    const showTier1 = this.elements.filterTier1?.checked !== false;
-    const showTier2 = this.elements.filterTier2?.checked !== false;
-
-    let tier1 = 0, tier2 = 0;
-    entries.innerHTML = '';
-
-    // Show most recent first, limit to 50
-    const filtered = log
-      .filter(entry => (entry.tier === 1 && showTier1) || (entry.tier === 2 && showTier2))
-      .slice(-50)
-      .reverse();
-
-    filtered.forEach(entry => {
-      if (entry.tier === 1) tier1++;
-      else tier2++;
-
-      const div = document.createElement('div');
-      div.className = `log-entry ${entry.tier === 2 ? 'tier2' : ''}`;
-      const timeStr = new Date(entry.timestamp).toLocaleTimeString();
-      div.innerHTML = `
-        <div class="log-entry-header">
-          <span class="log-entry-tier">Tier-${entry.tier}</span>
-          <span class="log-entry-time">${timeStr}</span>
-        </div>
-        <div class="log-entry-message">${entry.message}</div>
-        ${entry.details ? `<div class="log-entry-details">${JSON.stringify(entry.details)}</div>` : ''}
-      `;
-      entries.appendChild(div);
-    });
-
-    if (tier1Count) tier1Count.textContent = `Tier-1: ${tier1}`;
-    if (tier2Count) tier2Count.textContent = `Tier-2: ${tier2}`;
-  }
-
-  // ============================================================
-  // Virtual Sensor Panel
-  // ============================================================
-
-  startSensorPanelUpdate() {
-    setInterval(() => this.updateSensorPanel(), 200);
-  }
-
-  updateSensorPanel() {
-    if (!this.app || !this.app.ambulance) return;
-
-    const amb = this.app.ambulance;
-    const cone = amb.getClearanceCone ? amb.getClearanceCone() : null;
-    if (!cone) return;
-
-    // Update metrics
-    if (this.elements.coneRange) this.elements.coneRange.textContent = `${cone.maxRange}m`;
-    if (this.elements.coneFov) this.elements.coneFov.textContent = `${cone.fovDegrees}°`;
-
-    // Get targets in cone from simulation
-    let targetsInCone = 0;
-    let yieldingCount = 0;
-    let targetDetails = [];
-
-    if (this.app.sim && this.app.traffic) {
-      const ambPos = amb.mesh ? amb.mesh.position : null;
-      const ambHeading = amb.currentHeading || 0;
-      if (ambPos) {
-        // Check civilian vehicles in cone
-        this.app.traffic.vehicles.forEach((inst, id) => {
-          if (!inst.mesh) return;
-          const vehPos = inst.mesh.position;
-          const dx = vehPos.x - ambPos.x;
-          const dz = vehPos.z - ambPos.z;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-
-          if (dist <= cone.maxRange) {
-            const angleToVeh = Math.atan2(dx, dz);
-            let angleDiff = angleToVeh - ambHeading;
-            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-            const halfFov = (cone.fovDegrees * Math.PI / 180) / 2;
-
-            if (Math.abs(angleDiff) <= halfFov) {
-              targetsInCone++;
-              const isYielding = inst.yielding || false;
-              if (isYielding) yieldingCount++;
-              targetDetails.push({
-                id: id,
-                dist: dist,
-                angle: angleDiff,
-                yielding: isYielding,
-                speed: inst.speed || 0
+      // Draw congestion (red edges)
+      if (this.app.sim && this.app.sim.lastCongestionMap) {
+        const congestionMap = this.app.sim.lastCongestionMap;
+        Object.entries(congestionMap).forEach(([edgeId, data]) => {
+          if (data.travelTimeSec > 30) {
+            const edge = networkData.edges.find(e => e.id === edgeId);
+            if (edge && edge.polyline && edge.polyline.length > 1) {
+              ctx.strokeStyle = '#ef4444';
+              ctx.lineWidth = 4;
+              ctx.globalAlpha = 0.7;
+              ctx.beginPath();
+              edge.polyline.forEach((pt, i) => {
+                const pos = worldToCanvas(pt[0], pt[1]);
+                if (i === 0) ctx.moveTo(pos.x, pos.y);
+                else ctx.lineTo(pos.x, pos.y);
               });
+              ctx.stroke();
+              ctx.globalAlpha = 1.0;
             }
           }
         });
       }
+
+      // Draw ambulance position
+      if (this.app.ambulance && this.app.ambulance.mesh && this.app.ambulance.mesh.position) {
+        const pos = this.app.ambulance.mesh.position;
+        const canvasPos = worldToCanvas(pos.x, pos.z);
+        // Ambulance icon (white triangle pointing in heading direction)
+        const heading = this.app.ambulance.currentHeading || 0;
+        ctx.save();
+        ctx.translate(canvasPos.x, canvasPos.y);
+        ctx.rotate(-heading - Math.PI / 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(6, 6);
+        ctx.lineTo(-6, 6);
+        ctx.closePath();
+        ctx.fill();
+        // Inner dot
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Draw hospital markers
+      if (networkData && networkData.hospitals) {
+        networkData.hospitals.forEach(hosp => {
+          if (!hosp.positionENU) return;
+          const pos = worldToCanvas(hosp.positionENU[0], hosp.positionENU[2]);
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y - 8);
+          ctx.lineTo(pos.x + 6, pos.y + 4);
+          ctx.lineTo(pos.x - 6, pos.y + 4);
+          ctx.closePath();
+          ctx.fill();
+          // Cross
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y - 4);
+          ctx.lineTo(pos.x, pos.y + 2);
+          ctx.moveTo(pos.x - 3, pos.y - 1);
+          ctx.lineTo(pos.x + 3, pos.y - 1);
+          ctx.stroke();
+        });
+      }
     }
 
-    if (this.elements.coneTargets) this.elements.coneTargets.textContent = targetsInCone;
-    if (this.elements.yieldingCount) this.elements.yieldingCount.textContent = yieldingCount;
+    populateEdgeSelect() {
+      const select = this.elements.congestionEdgeSelect;
+      if (!select || !this.app) return;
+      const networkData = this.app.networkData || window.NETWORK_DATA;
+      if (!networkData || !networkData.edges) return;
 
-    // Render target list
-    this.renderSensorTargetList(targetDetails);
+      // Clear existing options except first
+      while (select.options.length > 1) {
+        select.remove(1);
+      }
 
-    // Render cone visualization
-    this.renderSensorConeVisualization(cone, targetDetails);
-  }
-
-  renderSensorTargetList(targets) {
-    const list = this.elements.sensorTargetList;
-    if (!list) return;
-
-    list.innerHTML = '';
-    targets.slice(0, 10).forEach(t => {
-      const item = document.createElement('div');
-      item.className = `target-item ${t.yielding ? 'yielding' : ''}`;
-      item.innerHTML = `
-        <div class="target-info">
-          <span class="target-id">${t.id}</span>
-          <span class="target-dist">${t.dist.toFixed(1)}m @ ${(t.angle * 180 / Math.PI).toFixed(0)}°</span>
-        </div>
-        <span class="target-status ${t.yielding ? 'yielding' : 'normal'}">${t.yielding ? 'YIELDING' : 'NORMAL'}</span>
-      `;
-      list.appendChild(item);
-    });
-  }
-
-  renderSensorConeVisualization(cone, targets) {
-    const canvas = this.elements.sensorConeCanvas;
-    const ctx = this.elements.sensorConeCtx;
-    if (!canvas || !ctx) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-    const cx = w / 2;
-    const cy = h - 20; // Bottom center
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Draw cone background
-    const halfFov = (cone.fovDegrees * Math.PI / 180) / 2;
-    const maxRange = cone.maxRange;
-    const scale = (h - 30) / maxRange;
-
-    ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx - Math.sin(-halfFov) * maxRange * scale, cy - Math.cos(-halfFov) * maxRange * scale);
-    ctx.arc(cx, cy, maxRange * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Draw cone outline
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx - Math.sin(-halfFov) * maxRange * scale, cy - Math.cos(-halfFov) * maxRange * scale);
-    ctx.arc(cx, cy, maxRange * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
-    ctx.closePath();
-    ctx.stroke();
-
-    // Draw range rings
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.2)';
-    ctx.lineWidth = 1;
-    for (let r = 20; r <= maxRange; r += 20) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
-      ctx.stroke();
+      networkData.edges.forEach(edge => {
+        const option = document.createElement('option');
+        option.value = edge.id;
+        const from = edge.from || edge.source;
+        const to = edge.to || edge.target;
+        option.textContent = `${edge.id} (${from} → ${to}, ${(edge.length || 0).toFixed(0)}m)`;
+        select.appendChild(option);
+      });
     }
 
-    // Draw ambulance at apex
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-    ctx.fill();
+    // ============================================================
+    // Congestion Injection
+    // ============================================================
 
-    // Draw target vehicles
-    targets.forEach(t => {
-      const angle = t.angle;
-      const dist = Math.min(t.dist, maxRange);
-      const x = cx + Math.sin(angle) * dist * scale;
-      const y = cy - Math.cos(angle) * dist * scale;
+    injectCongestion() {
+      if (!this.app || !this.app.sim) return;
+      const edgeId = this.elements.congestionEdgeSelect.value;
+      const type = this.elements.congestionType.value;
+      const duration = parseFloat(this.elements.congestionDuration.value) || 60;
+      const speedFactor = parseFloat(this.elements.speedFactor.value) || 0.3;
 
-      ctx.fillStyle = t.yielding ? '#10b981' : '#f59e0b';
+      if (!edgeId) {
+        this.showToast('Please select an edge for congestion injection', 'warning');
+        return;
+      }
+
+      this.app.sim.injectCongestion(edgeId, type, duration, speedFactor);
+      this.showToast(`Congestion injected on ${edgeId} (${type}, ${duration}s)`, 'success');
+      this.renderActiveCongestionList();
+    }
+
+    clearAllCongestion() {
+      if (!this.app || !this.app.sim) return;
+      this.app.sim.clearAllCongestion();
+      this.showToast('All congestion cleared', 'info');
+      this.renderActiveCongestionList();
+    }
+
+    renderActiveCongestionList() {
+      const list = this.elements.activeCongestionList;
+      if (!list || !this.app || !this.app.sim) return;
+
+      const congestionMap = this.app.sim.activeCongestion || {};
+      list.innerHTML = '';
+
+      Object.entries(congestionMap).forEach(([edgeId, data]) => {
+        const item = document.createElement('div');
+        item.className = 'congestion-item';
+        item.innerHTML = `
+          <div class="congestion-item-info">
+            <span class="congestion-item-edge">${edgeId}</span>
+            <span class="congestion-item-type">${data.type} - ${data.remainingSec.toFixed(0)}s remaining</span>
+          </div>
+          <button class="congestion-item-remove" data-edge="${edgeId}">×</button>
+        `;
+        list.appendChild(item);
+      });
+
+      // Add remove handlers
+      list.querySelectorAll('.congestion-item-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const edgeId = e.target.dataset.edge;
+          if (this.app && this.app.sim) {
+            this.app.sim.removeCongestion(edgeId);
+            this.renderActiveCongestionList();
+          }
+        });
+      });
+    }
+
+    // ============================================================
+    // AI Decision Log
+    // ============================================================
+
+    startDecisionLogPolling() {
+      // Poll every 500ms for new decisions
+      setInterval(() => this.renderDecisionLog(), 500);
+    }
+
+    renderDecisionLog() {
+      const entries = this.elements.decisionLogEntries;
+      const tier1Count = this.elements.logTier1Count;
+      const tier2Count = this.elements.logTier2Count;
+      if (!entries || !this.app || !this.app.sim) return;
+
+      const log = this.app.sim.decisionLog || [];
+      const showTier1 = this.elements.filterTier1?.checked !== false;
+      const showTier2 = this.elements.filterTier2?.checked !== false;
+
+      let tier1 = 0, tier2 = 0;
+      entries.innerHTML = '';
+
+      // Show most recent first, limit to 50
+      const filtered = log
+        .filter(entry => (entry.tier === 1 && showTier1) || (entry.tier === 2 && showTier2))
+        .slice(-50)
+        .reverse();
+
+      filtered.forEach(entry => {
+        if (entry.tier === 1) tier1++;
+        else tier2++;
+
+        const div = document.createElement('div');
+        div.className = `log-entry ${entry.tier === 2 ? 'tier2' : ''}`;
+        const timeStr = new Date(entry.timestamp).toLocaleTimeString();
+        div.innerHTML = `
+          <div class="log-entry-header">
+            <span class="log-entry-tier">Tier-${entry.tier}</span>
+            <span class="log-entry-time">${timeStr}</span>
+          </div>
+          <div class="log-entry-message">${entry.message}</div>
+          ${entry.details ? `<div class="log-entry-details">${JSON.stringify(entry.details)}</div>` : ''}
+        `;
+        entries.appendChild(div);
+      });
+
+      if (tier1Count) tier1Count.textContent = `Tier-1: ${tier1}`;
+      if (tier2Count) tier2Count.textContent = `Tier-2: ${tier2}`;
+    }
+
+    // ============================================================
+    // Virtual Sensor Panel
+    // ============================================================
+
+    startSensorPanelUpdate() {
+      setInterval(() => this.updateSensorPanel(), 200);
+    }
+
+    updateSensorPanel() {
+      if (!this.app || !this.app.ambulance) return;
+
+      const amb = this.app.ambulance;
+      const cone = amb.getClearanceCone ? amb.getClearanceCone() : null;
+      
+      // EXPLICIT DEFAULTS: 80m range, 60° FOV — never undefined
+      const maxRange = (cone && cone.maxRange) ? cone.maxRange : 80;
+      const fovDegrees = (cone && cone.fovDegrees) ? cone.fovDegrees : 60;
+
+      // Update metrics with explicit values
+      if (this.elements.coneRange) this.elements.coneRange.textContent = `${maxRange}m`;
+      if (this.elements.coneFov) this.elements.coneFov.textContent = `${fovDegrees}°`;
+
+      // Get targets in cone from simulation
+      let targetsInCone = 0;
+      let yieldingCount = 0;
+      let targetDetails = [];
+
+      if (this.app.sim && this.app.traffic) {
+        const ambPos = amb.mesh ? amb.mesh.position : null;
+        const ambHeading = amb.currentHeading || 0;
+        if (ambPos) {
+          // Check civilian vehicles in cone
+          this.app.traffic.vehicles.forEach((inst, id) => {
+            if (!inst.mesh) return;
+            const vehPos = inst.mesh.position;
+            const dx = vehPos.x - ambPos.x;
+            const dz = vehPos.z - ambPos.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+
+            if (dist <= maxRange) {
+              const angleToVeh = Math.atan2(dx, dz);
+              let angleDiff = angleToVeh - ambHeading;
+              while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+              while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+              const halfFov = (fovDegrees * Math.PI / 180) / 2;
+
+              if (Math.abs(angleDiff) <= halfFov) {
+                targetsInCone++;
+                const isYielding = inst.yielding || false;
+                if (isYielding) yieldingCount++;
+                targetDetails.push({
+                  id: id,
+                  dist: dist,
+                  angle: angleDiff,
+                  yielding: isYielding,
+                  speed: inst.speed || 0
+                });
+              }
+            }
+          });
+        }
+      }
+
+      if (this.elements.coneTargets) this.elements.coneTargets.textContent = targetsInCone;
+      if (this.elements.yieldingCount) this.elements.yieldingCount.textContent = yieldingCount;
+
+      // Render target list
+      this.renderSensorTargetList(targetDetails);
+
+      // Render cone visualization
+      this.renderSensorConeVisualization({ maxRange, fovDegrees }, targetDetails);
+    }
+
+    renderSensorTargetList(targets) {
+      const list = this.elements.sensorTargetList;
+      if (!list) return;
+
+      list.innerHTML = '';
+      targets.slice(0, 10).forEach(t => {
+        const item = document.createElement('div');
+        item.className = `target-item ${t.yielding ? 'yielding' : ''}`;
+        item.innerHTML = `
+          <div class="target-info">
+            <span class="target-id">${t.id}</span>
+            <span class="target-dist">${t.dist.toFixed(1)}m @ ${(t.angle * 180 / Math.PI).toFixed(0)}°</span>
+          </div>
+          <span class="target-status ${t.yielding ? 'yielding' : 'normal'}">${t.yielding ? 'YIELDING' : 'NORMAL'}</span>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    renderSensorConeVisualization(cone, targets) {
+      const canvas = this.elements.sensorConeCanvas;
+      const ctx = this.elements.sensorConeCtx;
+      if (!canvas || !ctx) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h - 20; // Bottom center
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw cone background
+      const halfFov = (cone.fovDegrees * Math.PI / 180) / 2;
+      const maxRange = cone.maxRange;
+      const scale = (h - 30) / maxRange;
+
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx - Math.sin(-halfFov) * maxRange * scale, cy - Math.cos(-halfFov) * maxRange * scale);
+      ctx.arc(cx, cy, maxRange * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
+      ctx.closePath();
       ctx.fill();
 
-      // Speed indicator
-      ctx.fillStyle = '#fff';
-      ctx.font = '8px monospace';
+      // Draw cone outline
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx - Math.sin(-halfFov) * maxRange * scale, cy - Math.cos(-halfFov) * maxRange * scale);
+      ctx.arc(cx, cy, maxRange * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Draw range rings
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.2)';
+      ctx.lineWidth = 1;
+      for (let r = 20; r <= maxRange; r += 20) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * scale, -halfFov - Math.PI / 2, halfFov - Math.PI / 2);
+        ctx.stroke();
+      }
+
+      // Draw ambulance at apex
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw target vehicles
+      targets.forEach(t => {
+        const angle = t.angle;
+        const dist = Math.min(t.dist, maxRange);
+        const x = cx + Math.sin(angle) * dist * scale;
+        const y = cy - Math.cos(angle) * dist * scale;
+
+        ctx.fillStyle = t.yielding ? '#10b981' : '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Speed indicator
+        ctx.fillStyle = '#fff';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${(t.speed * 3.6).toFixed(0)}`, x, y - 8);
+      });
+
+      // Labels - always show explicit values
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`${(t.speed * 3.6).toFixed(0)}`, x, y - 8);
-    });
-
-    // Labels
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${maxRange}m`, cx, 15);
-    ctx.fillText(`${cone.fovDegrees}° FOV`, cx, 28);
-  }
-
-  // ============================================================
-  // Dual Ambulance A vs D Comparison
-  // ============================================================
-
-  startComparisonPanelUpdate() {
-    setInterval(() => this.updateComparisonPanel(), 1000);
-  }
-
-  updateComparisonPanel() {
-    if (!this.app || !this.app.sim) return;
-
-    // Get baseline and AI corridor metrics from simulation
-    const metrics = this.app.sim.getMetrics();
-    if (!metrics) return;
-
-    // Mode A: Baseline
-    const baselineTimeSec = metrics.baselineTimeSec;
-    const baselineRedWait = metrics.baselineTimeSec - metrics.aiCorridorTimeSec; // approx
-    const baselineHalts = metrics.baselineHalts;
-    const baselineSpeed = metrics.avgSpeedBaseKmh;
-
-    // Mode D: Combined (current AI corridor)
-    const aiTimeSec = metrics.aiCorridorTimeSec;
-    const aiRedWait = metrics.ambulanceRedLightWaitSec;
-    const aiHalts = metrics.aiHalts;
-    const aiSpeed = metrics.avgSpeedAiKmh;
-
-    // Update display
-    if (this.elements.cmpATime) this.elements.cmpATime.textContent = this.formatTime(baselineTimeSec);
-    if (this.elements.cmpARed) this.elements.cmpARed.textContent = `${baselineRedWait.toFixed(1)}s`;
-    if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = baselineHalts;
-    if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = `${baselineSpeed.toFixed(1)} km/h`;
-
-    if (this.elements.cmpDTime) this.elements.cmpDTime.textContent = this.formatTime(aiTimeSec);
-    if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = `${aiRedWait.toFixed(1)}s`;
-    if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = aiHalts;
-    if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = `${aiSpeed.toFixed(1)} km/h`;
-
-    // Deltas
-    const timeSaved = baselineTimeSec - aiTimeSec;
-    const stopsAvoided = baselineHalts - aiHalts;
-    const speedGain = aiSpeed - baselineSpeed;
-
-    if (this.elements.cmpDeltaTime) {
-      this.elements.cmpDeltaTime.textContent = this.formatTime(timeSaved);
-      this.elements.cmpDeltaTime.className = timeSaved > 0 ? 'metric positive' : 'metric negative';
+      ctx.fillText(`${maxRange}m`, cx, 15);
+      ctx.fillText(`${cone.fovDegrees}° FOV`, cx, 28);
     }
-    if (this.elements.cmpDeltaStops) {
-      this.elements.cmpDeltaStops.textContent = stopsAvoided;
-      this.elements.cmpDeltaStops.className = stopsAvoided > 0 ? 'metric positive' : 'metric negative';
+
+    // ============================================================
+    // Dual Ambulance A vs D Comparison
+    // ============================================================
+
+    startComparisonPanelUpdate() {
+      setInterval(() => this.updateComparisonPanel(), 1000);
     }
-    if (this.elements.cmpDeltaSpeed) {
-      this.elements.cmpDeltaSpeed.textContent = `+${speedGain.toFixed(1)} km/h`;
-      this.elements.cmpDeltaSpeed.className = speedGain > 0 ? 'metric positive' : 'metric negative';
+
+    updateComparisonPanel() {
+      if (!this.app || !this.app.sim) return;
+
+      // Check if experiment has been run
+      const hasExperimentRun = this.lastExperimentResult !== undefined;
+      
+      // Show/hide placeholder
+      if (this.elements.comparisonPlaceholder) {
+        this.elements.comparisonPlaceholder.style.display = hasExperimentRun ? 'none' : 'block';
+      }
+
+      if (!hasExperimentRun) {
+        // Show placeholder - don't display fake metrics
+        if (this.elements.cmpATime) this.elements.cmpATime.textContent = '--:--';
+        if (this.elements.cmpARed) this.elements.cmpARed.textContent = '--';
+        if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = '--';
+        if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = '-- km/h';
+        if (this.elements.cmpDTime) this.elements.cmpDTime.textContent = '--:--';
+        if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = '--';
+        if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = '--';
+        if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = '-- km/h';
+        if (this.elements.cmpDeltaTime) this.elements.cmpDeltaTime.textContent = '--:--';
+        if (this.elements.cmpDeltaStops) this.elements.cmpDeltaStops.textContent = '--';
+        if (this.elements.cmpDeltaSpeed) this.elements.cmpDeltaSpeed.textContent = '-- km/h';
+        return;
+      }
+
+      // Experiment has run - display real results from lastExperimentResult
+      const result = this.lastExperimentResult;
+      if (!result || !result.modes) return;
+
+      const modeA = result.modes.A;
+      const modeD = result.modes.D;
+
+      if (modeA) {
+        if (this.elements.cmpATime) this.elements.cmpATime.textContent = this.formatTime(modeA.ambulanceTravelTimeSec || 0);
+        if (this.elements.cmpARed) this.elements.cmpARed.textContent = `${(modeA.ambulanceRedLightWaitSec || 0).toFixed(1)}s`;
+        if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = modeA.totalRedStops || 0;
+        if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = `${(modeA.avgSpeedKmh || 0).toFixed(1)} km/h`;
+      }
+
+      if (modeD) {
+        if (this.elements.cmpDTime) this.elements.cmpDTime.textContent = this.formatTime(modeD.ambulanceTravelTimeSec || 0);
+        if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = `${(modeD.ambulanceRedLightWaitSec || 0).toFixed(1)}s`;
+        if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = modeD.totalRedStops || 0;
+        if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = `${(modeD.avgSpeedKmh || 0).toFixed(1)} km/h`;
+      }
+
+      // Deltas
+      if (modeA && modeD) {
+        const timeSaved = (modeA.ambulanceTravelTimeSec || 0) - (modeD.ambulanceTravelTimeSec || 0);
+        const stopsAvoided = (modeA.totalRedStops || 0) - (modeD.totalRedStops || 0);
+        const speedGain = (modeD.avgSpeedKmh || 0) - (modeA.avgSpeedKmh || 0);
+
+        if (this.elements.cmpDeltaTime) {
+          this.elements.cmpDeltaTime.textContent = this.formatTime(timeSaved);
+          this.elements.cmpDeltaTime.className = timeSaved > 0 ? 'metric positive' : (timeSaved < 0 ? 'metric negative' : 'metric neutral');
+        }
+        if (this.elements.cmpDeltaStops) {
+          this.elements.cmpDeltaStops.textContent = stopsAvoided;
+          this.elements.cmpDeltaStops.className = stopsAvoided > 0 ? 'metric positive' : (stopsAvoided < 0 ? 'metric negative' : 'metric neutral');
+        }
+        if (this.elements.cmpDeltaSpeed) {
+          this.elements.cmpDeltaSpeed.textContent = `${speedGain >= 0 ? '+' : ''}${speedGain.toFixed(1)} km/h`;
+          this.elements.cmpDeltaSpeed.className = speedGain > 0 ? 'metric positive' : (speedGain < 0 ? 'metric negative' : 'metric neutral');
+        }
+      }
     }
-  }
 
-  async runComparisonExperiment() {
-    if (!this.app || !this.app.sim) return;
+    async runComparisonExperiment() {
+      if (!this.app || !this.app.sim) return;
 
-    this.showToast('Running A/B/C/D Experiment...', 'info');
-    this.elements.btnRunComparison.disabled = true;
-    this.elements.btnRunComparison.textContent = 'Running...';
+      this.showToast('Running A/B/C/D Experiment...', 'info');
+      this.elements.btnRunComparison.disabled = true;
+      this.elements.btnRunComparison.textContent = 'Running...';
 
-    try {
-      // Get experiment module
+      try {
+        // Get experiment module
+        const ExperimentHarness = window.ExperimentHarness;
+        if (!ExperimentHarness) {
+          // Dynamically load if not present
+          const script = document.createElement('script');
+          script.src = 'js/experiment.js';
+          document.head.appendChild(script);
+          await new Promise(r => setTimeout(r, 500));
+        }
+
+        if (window.ExperimentHarness) {
+          const harness = new window.ExperimentHarness();
+          const scenario = {
+            originNode: 'Koramangala',
+            destinationHospital: 'Manipal Hospital',
+            durationSec: parseInt(this.elements.simDuration.value) || 600,
+            seed: parseInt(this.elements.seedSlider.value) || 42,
+            demandProfile: this.elements.demandProfile.value || 'peak'
+          };
+
+          const result = harness.runComparison(scenario);
+          
+          // Store for export and display
+          this.lastExperimentResult = result;
+
+          this.showToast('Experiment Complete — Results in Comparison Panel', 'success');
+          
+          if (this.elements.exportStatus) {
+            this.elements.exportStatus.textContent = `Experiment completed at ${new Date().toLocaleTimeString()}. Ready for export.`;
+          }
+          
+          // Immediately update the panel with results
+          this.updateComparisonPanel();
+        } else {
+          this.showToast('Experiment module not available', 'error');
+        }
+      } catch (e) {
+        console.error('Experiment failed:', e);
+        this.showToast(`Experiment failed: ${e.message}`, 'error');
+      } finally {
+        this.elements.btnRunComparison.disabled = false;
+        this.elements.btnRunComparison.textContent = 'Run A/B/C/D Experiment';
+      }
+    }
+
+    // ============================================================
+    // Replay / Seed / Mode Controls
+    // ============================================================
+
+    resetSimulation() {
+      if (!this.app) return;
+      
+      const seed = parseInt(this.elements.seedSlider.value) || 42;
+      const demandProfile = this.elements.demandProfile.value || 'peak';
+      const duration = parseInt(this.elements.simDuration.value) || 600;
+
+      // Re-initialize simulation with new seed
+      if (this.app.initSimulation) {
+        this.app.initSimulation(seed, demandProfile, duration);
+      }
+
+      // Reset benchmark
+      if (this.app.benchmark) {
+        this.app.benchmark = new window.BenchmarkEngine({ isAiCorridorActive: this.app.aiCorridorActive });
+        window.benchmarkInstance = this.app.benchmark;
+      }
+
+      // Reset experiment result
+      this.lastExperimentResult = undefined;
+
+      // Reset UI
+      this.updateCorridorToggleUI(this.app.aiCorridorActive);
+      
+      this.showToast(`Simulation reset (seed: ${seed}, profile: ${demandProfile})`, 'success');
+    }
+
+    pauseSimulation() {
+      if (this.app && this.app.sim) {
+        this.app.sim.paused = true;
+        this.showToast('Simulation paused', 'info');
+      }
+    }
+
+    resumeSimulation() {
+      if (this.app && this.app.sim) {
+        this.app.sim.paused = false;
+        this.showToast('Simulation resumed', 'success');
+      }
+    }
+
+    stepSimulation() {
+      if (this.app && this.app.sim) {
+        if (typeof this.app.sim.stepFrame === 'function') {
+          this.app.sim.stepFrame(0.1); // Step 0.1s
+        } else {
+          const wasPaused = this.app.sim.paused;
+          this.app.sim.paused = true;
+          this.app.sim.step(0.1); // Step 0.1s
+          this.showToast('Stepped 0.1s', 'info');
+          if (!wasPaused) this.app.sim.paused = false;
+          return;
+        }
+        this.showToast('Stepped 0.1s', 'info');
+      }
+    }
+
+    // ============================================================
+    // Experiment Export
+    // ============================================================
+
+    exportExperiment(format) {
+      if (!this.lastExperimentResult) {
+        this.showToast('No experiment results to export. Run experiment first.', 'warning');
+        return;
+      }
+
       const ExperimentHarness = window.ExperimentHarness;
       if (!ExperimentHarness) {
-        // Dynamically load if not present
-        const script = document.createElement('script');
-        script.src = 'js/experiment.js';
-        document.head.appendChild(script);
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      if (window.ExperimentHarness) {
-        const harness = new window.ExperimentHarness();
-        const scenario = {
-          originNode: 'Koramangala',
-          destinationHospital: 'Manipal Hospital',
-          durationSec: parseInt(this.elements.simDuration.value) || 600,
-          seed: parseInt(this.elements.seedSlider.value) || 42,
-          demandProfile: this.elements.demandProfile.value || 'peak'
-        };
-
-        const result = harness.runComparison(scenario);
-        
-        // Store for export
-        this.lastExperimentResult = result;
-
-        this.showToast('Experiment Complete — Results in Comparison Panel', 'success');
-        
-        if (this.elements.exportStatus) {
-          this.elements.exportStatus.textContent = `Experiment completed at ${new Date().toLocaleTimeString()}. Ready for export.`;
-        }
-      } else {
         this.showToast('Experiment module not available', 'error');
-      }
-    } catch (e) {
-      console.error('Experiment failed:', e);
-      this.showToast(`Experiment failed: ${e.message}`, 'error');
-    } finally {
-      this.elements.btnRunComparison.disabled = false;
-      this.elements.btnRunComparison.textContent = 'Run A/B/C/D Experiment';
-    }
-  }
-
-  // ============================================================
-  // Replay / Seed / Mode Controls
-  // ============================================================
-
-  resetSimulation() {
-    if (!this.app) return;
-    
-    const seed = parseInt(this.elements.seedSlider.value) || 42;
-    const demandProfile = this.elements.demandProfile.value || 'peak';
-    const duration = parseInt(this.elements.simDuration.value) || 600;
-
-    // Re-initialize simulation with new seed
-    if (this.app.initSimulation) {
-      this.app.initSimulation(seed, demandProfile, duration);
-    }
-
-    // Reset benchmark
-    if (this.app.benchmark) {
-      this.app.benchmark = new window.BenchmarkEngine({ isAiCorridorActive: this.app.aiCorridorActive });
-      window.benchmarkInstance = this.app.benchmark;
-    }
-
-    // Reset UI
-    this.updateCorridorToggleUI(this.app.aiCorridorActive);
-    
-    this.showToast(`Simulation reset (seed: ${seed}, profile: ${demandProfile})`, 'success');
-  }
-
-  pauseSimulation() {
-    if (this.app && this.app.sim) {
-      this.app.sim.paused = true;
-      this.showToast('Simulation paused', 'info');
-    }
-  }
-
-  resumeSimulation() {
-    if (this.app && this.app.sim) {
-      this.app.sim.paused = false;
-      this.showToast('Simulation resumed', 'success');
-    }
-  }
-
-  stepSimulation() {
-    if (this.app && this.app.sim) {
-      if (typeof this.app.sim.stepFrame === 'function') {
-        this.app.sim.stepFrame(0.1); // Step 0.1s
-      } else {
-        const wasPaused = this.app.sim.paused;
-        this.app.sim.paused = true;
-        this.app.sim.step(0.1); // Step 0.1s
-        this.showToast('Stepped 0.1s', 'info');
-        if (!wasPaused) this.app.sim.paused = false;
-        return;
-      }
-      this.showToast('Stepped 0.1s', 'info');
-    }
-  }
-
-  // ============================================================
-  // Experiment Export
-  // ============================================================
-
-  exportExperiment(format) {
-    if (!this.lastExperimentResult) {
-      this.showToast('No experiment results to export. Run experiment first.', 'warning');
-      return;
-    }
-
-    const ExperimentHarness = window.ExperimentHarness;
-    if (!ExperimentHarness) {
-      this.showToast('Experiment module not available', 'error');
-      return;
-    }
-
-    try {
-      let output;
-      if (format === 'json') {
-        output = ExperimentHarness.toJSON(this.lastExperimentResult);
-        this.downloadFile(output, `experiment_${Date.now()}.json`, 'application/json');
-      } else if (format === 'csv') {
-        output = ExperimentHarness.toCSV(this.lastExperimentResult);
-        this.downloadFile(output, `experiment_${Date.now()}.csv`, 'text/csv');
-      } else if (format === 'console') {
-        console.log('=== EXPERIMENT RESULTS (JSON) ===');
-        console.log(ExperimentHarness.toJSON(this.lastExperimentResult));
-        console.log('=== EXPERIMENT RESULTS (CSV) ===');
-        console.log(ExperimentHarness.toCSV(this.lastExperimentResult));
-        this.showToast('Results printed to browser console (F12)', 'info');
         return;
       }
 
-      this.showToast(`Experiment exported as ${format.toUpperCase()}`, 'success');
-      if (this.elements.exportStatus) {
-        this.elements.exportStatus.textContent = `Exported ${format.toUpperCase()} at ${new Date().toLocaleTimeString()}`;
+      try {
+        let output;
+        if (format === 'json') {
+          output = ExperimentHarness.toJSON(this.lastExperimentResult);
+          this.downloadFile(output, `experiment_${Date.now()}.json`, 'application/json');
+        } else if (format === 'csv') {
+          output = ExperimentHarness.toCSV(this.lastExperimentResult);
+          this.downloadFile(output, `experiment_${Date.now()}.csv`, 'text/csv');
+        } else if (format === 'console') {
+          console.log('=== EXPERIMENT RESULTS (JSON) ===');
+          console.log(ExperimentHarness.toJSON(this.lastExperimentResult));
+          console.log('=== EXPERIMENT RESULTS (CSV) ===');
+          console.log(ExperimentHarness.toCSV(this.lastExperimentResult));
+          this.showToast('Results printed to browser console (F12)', 'info');
+          return;
+        }
+
+        this.showToast(`Experiment exported as ${format.toUpperCase()}`, 'success');
+        if (this.elements.exportStatus) {
+          this.elements.exportStatus.textContent = `Exported ${format.toUpperCase()} at ${new Date().toLocaleTimeString()}`;
+        }
+      } catch (e) {
+        console.error('Export failed:', e);
+        this.showToast(`Export failed: ${e.message}`, 'error');
       }
-    } catch (e) {
-      console.error('Export failed:', e);
-      this.showToast(`Export failed: ${e.message}`, 'error');
     }
-  }
 
-  downloadFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+    downloadFile(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
 
-  // ============================================================
-  // Helper: Format time
-  // ============================================================
+    // ============================================================
+    // Helper: Format time
+    // ============================================================
 
-  formatTime(seconds) {
-    if (seconds === null || seconds === undefined || isNaN(seconds)) return '--:--';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-} // End of UIManager class
+    formatTime(seconds) {
+      if (seconds === null || seconds === undefined || isNaN(seconds)) return '--:--';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+  } // End of UIManager class
 
-UIManager.REQUIRED_KEYS = HUD_REQUIRED_KEYS;
-return UIManager;
+  UIManager.REQUIRED_KEYS = HUD_REQUIRED_KEYS;
+  return UIManager;
 }));

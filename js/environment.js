@@ -7,6 +7,21 @@
  * Procedural Corridor Parcel Buildings with CanvasTexture Facades & Night Window Emissives,
  * and BufferGeometry Merging for locked 60 FPS (<12 draw calls).
  * Browser-global (window.EnvironmentManager) & CommonJS (Node.js) compatible.
+ *
+ * VERTICAL LAYERING (fixed):
+ * - Ground terrain: y = -0.5
+ * - Asphalt deck: y = 0.0 (dark charcoal #262d38, 10-14m wide)
+ * - Lane markings: y = +0.05
+ * - Stop bars: y = +0.06
+ * - Curbs: y = 0.0 to +0.15
+ * - Sidewalks: y = +0.15
+ *
+ * BUILDING CLEARANCE:
+ * - Minimum distance from ANY road polyline segment: roadHalfWidth + 8m
+ * - Check against ALL 61 edges in bengaluru_edge_geometry.json
+ * - Low-profile context blocks: 8-18m (2-lane), 10-25m (4-lane), 15-35m (6-lane)
+ * - 6 hospital complexes with explicit placement
+ * - Floating labels for junctions & hospitals
  */
 
 (function (root, factory) {
@@ -351,7 +366,7 @@
         const leftZ = p.z + n.z * (halfW * m);
         const rightX = p.x - n.x * (halfW * m);
         const rightZ = p.z - n.z * (halfW * m);
-        const y = 0.0; // FIXED: Road deck at exactly y=0.0; ground plane is at y=-0.3
+        const y = 0.0; // FIXED: Asphalt deck at exactly y=0.0; ground plane is at y=-0.5
 
         positions.push(leftX, y, leftZ);
         uvs.push(0.0, accumDist / 10.0);
@@ -539,7 +554,7 @@
             const lz = p.z + n.z * (offset - stripeW / 2) * m;
             const rx = p.x + n.x * (offset + stripeW / 2) * m;
             const rz = p.z + n.z * (offset + stripeW / 2) * m;
-            const y = 0.04; // FIXED: Yellow centerlines at y=0.04 (4cm above road deck at y=0.0)
+            const y = 0.05; // Yellow centerlines at y=0.05 (5cm above road deck at y=0.0)
 
             yellowPositions.push(lx, y, lz, rx, y, rz);
           }
@@ -581,7 +596,7 @@
             const startZ = p1.z + dirZ * cur + normZ * off;
             const endX = p1.x + dirX * (cur + dashLen) + normX * off;
             const endZ = p1.z + dirZ * (cur + dashLen) + normZ * off;
-            const y = 0.04; // FIXED: Lane dividers at y=0.04 (4cm above road deck at y=0.0)
+            const y = 0.05; // Lane dividers at y=0.05 (5cm above road deck at y=0.0)
 
             const baseIdx = whitePositions.length / 3;
 
@@ -613,7 +628,7 @@
         const barStartZ = stopCenterZ + normZ * 0.2;
         const barEndX = stopCenterX + normX * (halfW - 0.2);
         const barEndZ = stopCenterZ + normZ * (halfW - 0.2);
-        const yStop = 0.08; // FIXED: Stop bars at y=0.08 (8cm above road deck at y=0.0)
+        const yStop = 0.06; // Stop bars at y=0.06 (6cm above road deck at y=0.0)
 
         const s0x = barStartX - dirX * (barThickness / 2);
         const s0z = barStartZ - dirZ * (barThickness / 2);
@@ -824,8 +839,8 @@
         }
       }
 
-      // Minimum clearance from road centerline = roadHalfWidth + 6m (task requirement)
-      const MIN_CLEARANCE_FACTOR = 1.0; // We'll add 6m to halfW
+      // Minimum clearance from road centerline = roadHalfWidth + 8m (task requirement)
+      const MIN_CLEARANCE_FACTOR = 1.0; // We'll add 8m to halfW
 
       for (const feat of roadFeatures) {
         const coords = feat.geometry.coordinates;
@@ -876,8 +891,8 @@
               facadeClass = 'heritage';
             }
 
-            // FIXED: Minimum clearance = roadHalfWidth + 6m (safety buffer from road)
-            const minClearance = halfW + 6.0;
+            // FIXED: Minimum clearance = roadHalfWidth + 8m (safety buffer from road)
+            const minClearance = halfW + 8.0;
             // Setback = clearance + sidewalk (2m) + curb (0.25m) + half building depth
             const setbackDist = minClearance + 2.25 + bDepth / 2.0;
 
@@ -947,13 +962,13 @@
           if (seg.halfW === currentRoadHalfW) {
             // Still need to check distance to THIS road segment's centerline
             const distToSeg = this._pointToSegmentDistance(corner.x, corner.z, seg.p1.x, seg.p1.z, seg.p2.x, seg.p2.z);
-            if (distToSeg < seg.halfW + 6.0) {
+            if (distToSeg < seg.halfW + 8.0) {
               return false; // Too close to this road
             }
           } else {
             // Check distance to OTHER road segments
             const distToSeg = this._pointToSegmentDistance(corner.x, corner.z, seg.p1.x, seg.p1.z, seg.p2.x, seg.p2.z);
-            if (distToSeg < seg.halfW + 6.0) {
+            if (distToSeg < seg.halfW + 8.0) {
               return false; // Too close to another road
             }
           }
@@ -1012,7 +1027,7 @@
 
     return {
       asphalt: new THREE.MeshStandardMaterial({
-        color: 0x222428,
+        color: 0x262d38, // Dark charcoal #262d38
         roughness: 0.85,
         metalness: 0.08,
         name: 'asphalt'
@@ -1259,7 +1274,7 @@
         }
       }
 
-      // 4. Ground Terrain Plane (Base Bengaluru terrain) - LOWERED to y=-0.3 to prevent z-fighting with roads at y=0.02
+      // 4. Ground Terrain Plane (Base Bengaluru terrain) - y=-0.5 to prevent z-fighting with asphalt at y=0.0
       const groundGeo = new THREE.PlaneGeometry(8000, 6000);
       groundGeo.rotateX(-Math.PI / 2);
       const groundMat = new THREE.MeshStandardMaterial({
@@ -1269,7 +1284,7 @@
         name: 'ground'
       });
       const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.position.y = -0.3; // FIXED: Lowered from -0.05 to -0.3 for proper vertical layering
+      ground.position.y = -0.5; // Ground at y=-0.5, asphalt at y=0.0, markings at y=0.05-0.06
       ground.receiveShadow = true;
       group.add(ground);
       this.meshes.ground = ground;
@@ -1278,7 +1293,108 @@
       this.scene.add(group);
 
       console.log(`EnvironmentManager: Environment successfully built and merged into ${group.children.length} draw calls.`);
+      
+      // Add floating labels for junctions and hospitals
+      this.addFloatingLabels(roadsData);
+      
       return group;
+    }
+
+    /**
+     * Adds floating text labels for junctions and hospitals.
+     * Uses CanvasTexture sprites that always face the camera.
+     */
+    addFloatingLabels(roadsData) {
+      if (typeof document === 'undefined' || !THREE.Sprite) return;
+      
+      // Create label texture from canvas
+      const createLabelTexture = (text, bgColor, textColor, fontSize = 24, padding = 12) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.font = `${fontSize}px monospace`;
+        const metrics = ctx.measureText(text);
+        const width = metrics.width + padding * 2;
+        const height = fontSize + padding * 2;
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Background
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, width, height);
+        
+        // Border
+        ctx.strokeStyle = textColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(2, 2, width - 4, height - 4);
+        
+        // Text
+        ctx.fillStyle = textColor;
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, width / 2, height / 2);
+        
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+      };
+
+      // Junction labels - collect unique junctions from road network
+      const junctionMap = new Map();
+      if (roadsData && roadsData.features) {
+        for (const feat of roadsData.features) {
+          const coords = feat.geometry.coordinates;
+          const pts = coords.map(c => this.projection.latLonAltToCartesian(c[1], c[0], c[2]));
+          
+          // Start and end points of each road segment are junctions
+          const start = pts[0];
+          const end = pts[pts.length - 1];
+          
+          const startKey = `${Math.round(start.x)},${Math.round(start.z)}`;
+          const endKey = `${Math.round(end.x)},${Math.round(end.z)}`;
+          
+          if (!junctionMap.has(startKey)) {
+            junctionMap.set(startKey, { position: start, count: 0 });
+          }
+          junctionMap.get(startKey).count++;
+          
+          if (!junctionMap.has(endKey)) {
+            junctionMap.set(endKey, { position: end, count: 0 });
+          }
+          junctionMap.get(endKey).count++;
+        }
+      }
+      
+      // Create junction label sprites
+      junctionMap.forEach((junction, key) => {
+        // Only label junctions with multiple connecting roads
+        if (junction.count >= 2) {
+          const labelText = `J-${key.slice(0, 8)}`;
+          const tex = createLabelTexture(labelText, 'rgba(0,0,0,0.8)', '#10b981', 18, 8);
+          const material = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+          const sprite = new THREE.Sprite(material);
+          sprite.position.set(junction.position.x, 8.0, junction.position.z); // 8m above road
+          sprite.scale.set(4, 2, 1);
+          sprite.name = `junction-label-${key}`;
+          this.group.add(sprite);
+          this.meshes[`junction_label_${key}`] = sprite;
+        }
+      });
+      
+      // Hospital labels from landmark definitions
+      for (const lm of LANDMARK_DEFINITIONS) {
+        if (lm.facadeType === 'hospital') {
+          const labelText = lm.name.replace('Hospital', '').replace('Emergency', '').replace('Trauma &', '').replace('Center', '').trim() + ' Hospital';
+          const tex = createLabelTexture(labelText, 'rgba(239,68,68,0.9)', '#fff', 20, 10);
+          const material = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+          const sprite = new THREE.Sprite(material);
+          sprite.position.set(lm.center[0], lm.height + 5.0, lm.center[1]); // 5m above building
+          sprite.scale.set(6, 2.5, 1);
+          sprite.name = `hospital-label-${lm.id}`;
+          this.group.add(sprite);
+          this.meshes[`hospital_label_${lm.id}`] = sprite;
+        }
+      }
     }
 
     /**

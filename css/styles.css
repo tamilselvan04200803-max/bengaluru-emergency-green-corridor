@@ -854,10 +854,10 @@ body, html {
    Phase 5 Interactive Control Panels
    ========================================================================== */
 
-/* Panel Dock Bar - Vertical left edge to avoid overlapping command-deck */
+/* Panel Dock Bar - Vertical left edge at 16px to avoid overlapping command-deck */
 .panel-dock {
   position: fixed;
-  left: 20px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -900,9 +900,10 @@ body, html {
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
 }
 
-/* Base Control Panel */
+/* Base Control Panel - Drawers offset to left: 84px (16px dock + 44px btn + 12px padding + 12px gap) */
 .control-panel {
   position: fixed;
+  left: 84px;
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -921,6 +922,12 @@ body, html {
 .control-panel.visible {
   display: flex;
   animation: panelSlideIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Single active drawer mode: panels stacked vertically when multiple open */
+.control-panel.stacked {
+  top: auto;
+  bottom: auto;
 }
 
 @keyframes panelSlideIn {
@@ -1136,10 +1143,10 @@ body, html {
   border-radius: 50%;
 }
 
-/* Congestion Panel */
+/* Congestion Panel - Drawers at left: 84px */
 .congestion-panel {
   top: 100px;
-  right: 20px;
+  left: 84px;
 }
 
 .active-congestion-list {
@@ -1196,7 +1203,7 @@ body, html {
 /* Decision Log Panel */
 .decision-log-panel {
   top: 100px;
-  left: 20px;
+  left: 84px;
   max-height: 500px;
 }
 
@@ -1288,7 +1295,7 @@ body, html {
 /* Sensor Panel */
 .sensor-panel {
   bottom: 90px;
-  right: 20px;
+  left: 84px;
 }
 
 .sensor-info {
@@ -1377,9 +1384,8 @@ body, html {
 /* Comparison Panel */
 .comparison-panel {
   top: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: 480px.
+  left: 84px;
+  min-width: 480px;
 }
 
 .comparison-grid {
@@ -1458,13 +1464,13 @@ body, html {
 /* Replay Panel */
 .replay-panel {
   bottom: 90px;
-  left: 20px.
+  left: 84px;
 }
 
 /* Export Panel */
 .export-panel {
   top: 100px;
-  right: 20px.
+  left: 84px;
 }
 
 .export-panel p {
@@ -1497,37 +1503,44 @@ body, html {
 
 @media (max-width: 1024px) {
   .panel-dock {
-    bottom: 10px.
-    padding: 6px 10px.
+    bottom: 10px;
+    left: auto;
+    top: auto;
+    right: 10px;
+    padding: 6px 10px;
+    flex-direction: row;
+    transform: none;
   }
   
   .dock-btn {
-    width: 38px.
-    height: 38px.
-    font-size: 16px.
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
   }
   
   .control-panel {
-    min-width: 280px.
-    max-width: 90vw.
+    min-width: 280px;
+    max-width: 90vw;
+    left: 10px;
+    right: 10px;
   }
   
   .comparison-panel {
-    min-width: 320px.
-    left: 10px.
-    transform: none.
+    min-width: 320px;
+    left: 10px;
+    transform: none;
   }
   
   .comparison-grid {
-    grid-template-columns: 1fr.
+    grid-template-columns: 1fr;
   }
   
   .comparison-divider {
-    writing-mode: horizontal-tb.
-    min-height: auto.
-    padding: 8px 0.
-    border-top: 1px solid var(--panel-border).
-    border-bottom: 1px solid var(--panel-border).
+    writing-mode: horizontal-tb;
+    min-height: auto;
+    padding: 8px 0;
+    border-top: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--panel-border);
   }
 }
 

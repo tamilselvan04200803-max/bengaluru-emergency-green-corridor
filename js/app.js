@@ -402,6 +402,11 @@
         if (this.cameraController && typeof this.cameraController.setMode === 'function') {
           this.cameraController.setMode(mode);
         }
+
+        // Hide ambulance mesh in cockpit mode, show in all other modes
+        if (this.ambulance && typeof this.ambulance.setMeshVisibility === 'function') {
+          this.ambulance.setMeshVisibility(mode !== 'cockpit');
+        }
       };
 
       if (camBtns.chase) camBtns.chase.addEventListener('click', () => setCameraMode('chase'));
