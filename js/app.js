@@ -1,9 +1,9 @@
 /**
  * js/app.js
  * Bengaluru Emergency Green Corridor 3D Digital Twin — Application Bootstrap
- * Three.js WebGL Engine, Scene Graph Initialization, 60 FPS Simulation Loop,
- * Dynamic HUD Telemetry, Command Deck Controls & Responsive Event Handling.
- * Browser-global & CommonJS compatible.
+ * MapLibre GL JS integration with Three.js CustomLayerInterface,
+ * Camera Director presets, deterministic simulation engine, HUD telemetry.
+ * Browser-global & CommonJS compatible (UMD).
  */
 
 (function (root, factory) {
@@ -23,221 +23,158 @@
       this.fpsElement = document.getElementById('stat-fps');
       this.speedElement = document.getElementById('stat-speed');
       this.preemptElement = document.getElementById('stat-preemptions');
-      this.savingsElement = document.getElementById('stat-savings');
 
       this.clock = (typeof THREE !== 'undefined') ? new THREE.Clock() : null;
       this.frameCount = 0;
       this.lastFpsUpdate = 0;
       this.fps = 60.0;
-      this.activeCameraMode = 'orbit';
       this.aiCorridorActive = true;
 
-      // The deterministic simulation runs on a fixed 0.1 s timestep so the
-      // browser world is bit-identical to the Node test runs. Frame deltas
-      // arrive at ~60 Hz, so they are accumulated and spent in 0.1 s chunks.
+      // Deterministic simulation accumulator (0.1 s fixed timestep)
       this._simAccumulator = 0.0;
       this._simStepSec = 0.1;
+      this._ambId = 'amb_1';
+      this._ambOdometerM = 0.0;
 
-      this.initThree();
+      // Stage 6 MapLibre + Three.js CustomLayer + CameraDirector
+      this.map = null;
+      this.mapRenderer = null;
+      this.vehicleLayer = null;
+      this.cameraDirector = null;
+
       this.initSubsystems();
+      this.initMapLibreIntegration();
       this.initDeckControls();
       this.initEvents();
 
-      // Begin continuous 60 FPS animation loop
       this.animate = this.animate.bind(this);
       if (typeof requestAnimationFrame !== 'undefined') {
         requestAnimationFrame(this.animate);
       }
 
-      // Hide loading splash screen
       this.dismissLoadingScreen();
     }
 
-    /**
-     * Initializes Three.js WebGL Scene, Camera, Renderer, and Controls.
-     */
-    initThree() {
-      if (typeof THREE === 'undefined') {
-        console.warn('Application: THREE.js library not detected. Running headless.');
-        return;
-      }
-
-      const cfg = (typeof CONFIG !== 'undefined' && CONFIG.GRAPHICS) ? CONFIG.GRAPHICS : {
-        antialias: true,
-        shadows: true,
-        shadowMapSize: 2048,
-        maxPixelRatio: 2.0,
-        clearColor: 0x070b14,
-        toneMappingExposure: 1.15
-      };
-
-      const camCfg = (typeof CONFIG !== 'undefined' && CONFIG.CAMERA) ? CONFIG.CAMERA : {
-        fov: 60,
-        near: 0.5,
-        far: 10000,
-        initialPosition: { x: 0, y: 380, z: 460 },
-        initialTarget: { x: 0, y: 0, z: 0 }
-      };
-
-      // 1. Scene
-      this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(cfg.clearColor);
-      this.scene.fog = new THREE.FogExp2(cfg.clearColor, 0.00030);
-
-      // 2. Camera
-      const aspect = (typeof window !== 'undefined' && window.innerWidth) ? (window.innerWidth / window.innerHeight) : (16 / 9);
-      this.camera = new THREE.PerspectiveCamera(camCfg.fov, aspect, camCfg.near, camCfg.far);
-      this.camera.position.set(camCfg.initialPosition.x, camCfg.initialPosition.y, camCfg.initialPosition.z);
-      this.camera.lookAt(camCfg.initialTarget.x, camCfg.initialTarget.y, camCfg.initialTarget.z);
-
-      // 3. WebGL Renderer
-      if (this.canvas) {
-        this.renderer = new THREE.WebGLRenderer({
-          canvas: this.canvas,
-          antialias: cfg.antialias,
-          powerPreference: 'high-performance'
-        });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cfg.maxPixelRatio));
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = cfg.toneMappingExposure;
-
-        if (cfg.shadows) {
-          this.renderer.shadowMap.enabled = true;
-          this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        }
-      }
-
-      // 4. Orbit Controls (Default view)
-      if (typeof THREE.OrbitControls !== 'undefined' && this.renderer) {
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent dipping beneath ground
-        this.controls.minDistance = 5.0;
-        this.controls.maxDistance = 4500.0;
-      }
-    }
-
-    /**
-     * Initializes geospatial projection, environment, atmosphere, and traffic signal subsystems.
-     */
     initSubsystems() {
-      // 1. Coordinate Projection System
       const geoOrigin = (typeof CONFIG !== 'undefined' && CONFIG.GEO) ? CONFIG.GEO.origin : {
         lat: 12.9715987,
         lon: 77.5945627,
         alt: 920.0
       };
 
-      if (typeof GeoProjection !== 'undefined') {
-        this.projection = new GeoProjection(geoOrigin);
-      } else {
-        this.projection = null;
-      }
+      // 1. Coordinate Projection System
+      this.projection = (typeof GeoProjection !== 'undefined') ? new GeoProjection(geoOrigin) : null;
       window.projectionInstance = this.projection;
 
-      // 2. Procedural 3D Environment (Roads, Curbs, Sidewalks, Buildings)
-      if (typeof EnvironmentManager !== 'undefined' && this.scene && this.projection) {
-        this.environment = new EnvironmentManager(this.scene, this.projection);
-      } else {
-        this.environment = null;
-      }
-      window.environmentInstance = this.environment;
-
-      // 3. 15 3D Traffic Signal Gantries & ITMS Preemption Network
-      if (typeof SignalManager !== 'undefined' && this.scene && this.projection) {
-        this.signals = new SignalManager(this.scene, this.projection);
-      } else {
-        this.signals = null;
-      }
+      // 2. 15 Traffic Signals & ITMS Preemption Network (headless state authority)
+      this.signals = (typeof SignalManager !== 'undefined' && this.projection)
+        ? new SignalManager(null, this.projection)
+        : null;
       window.signalManagerInstance = this.signals;
+      this.signalManager = this.signals; // alias used by UIManager minimap
 
-      // 4. Dynamic Atmosphere, Day/Night Lighting & Rain Weather Controller
-      if (typeof AtmosphereController !== 'undefined' && this.scene) {
-        this.atmosphere = new AtmosphereController(this.scene, this.camera, this.renderer);
-        if (this.environment) {
-          this.atmosphere.setEnvironmentManager(this.environment);
-        }
-      } else {
-        this.atmosphere = null;
-      }
-      window.atmosphereInstance = this.atmosphere;
-
-      // Milestone 2: Dual-Mode Ambulance & Multi-Mode Camera Controller
-      if (typeof AmbulanceManager !== 'undefined' && this.scene && this.projection) {
-        this.ambulance = new AmbulanceManager(this.scene, this.projection, this.signals);
-      } else {
-        this.ambulance = null;
-      }
+      // 3. Ambulance State Controller (mirrors SimulationEngine kinematics)
+      this.ambulance = (typeof AmbulanceManager !== 'undefined' && this.projection)
+        ? new AmbulanceManager(null, this.projection, this.signals)
+        : null;
       window.ambulanceInstance = this.ambulance;
 
-      if (typeof CameraController !== 'undefined' && this.camera) {
-        this.cameraController = new CameraController(
-          this.camera,
-          this.ambulance,
-          this.canvas,
-          this.controls
-        );
-        this.cameraController.setMode(this.activeCameraMode || 'orbit');
-      } else {
-        this.cameraController = null;
-      }
-      window.cameraControllerInstance = this.cameraController;
-
-      if (typeof TrafficSwarmManager !== 'undefined' && this.scene) {
-        this.traffic = new TrafficSwarmManager(
-          this.scene,
-          this.projection,
-          this.environment,
-          this.signals,
-          this.ambulance
-        );
-      } else {
-        this.traffic = null;
+      // 4. Central-Corridor Mixed Civilian Traffic Swarm (renders alongside SimulationEngine fleet)
+      this.traffic = (typeof TrafficSwarmManager !== 'undefined' && this.projection)
+        ? new TrafficSwarmManager(null, this.projection, null, this.signals, this.ambulance)
+        : null;
+      if (this.traffic && typeof this.traffic.setVehicleCount === 'function') {
+        this.traffic.setVehicleCount(80);
       }
       window.trafficInstance = this.traffic;
-      if (typeof BenchmarkEngine !== 'undefined') {
-        this.benchmark = new BenchmarkEngine({ isAiCorridorActive: this.aiCorridorActive });
-      } else {
-        this.benchmark = null;
-      }
+
+      // 4. Analytics Benchmark Engine
+      this.benchmark = (typeof BenchmarkEngine !== 'undefined')
+        ? new BenchmarkEngine({ isAiCorridorActive: this.aiCorridorActive })
+        : null;
       window.benchmarkInstance = this.benchmark;
 
-      if (typeof UIManager !== 'undefined') {
-        this.ui = new UIManager(this);
-      } else {
-        this.ui = null;
-      }
+      // 5. HUD & Interactive UI Manager
+      this.ui = (typeof UIManager !== 'undefined') ? new UIManager(this) : null;
       window.uiInstance = this.ui;
 
-      // Stage 4: drive the deterministic simulation engine from the browser
-      // loop so the live app uses the same authoritative router, signal
-      // machine and bay state machine as the Node test suites.
+      // 6. Deterministic SimulationEngine + SmartRoutingController
       this.initSimulation();
 
-      // Phase 5: Initialize interactive control panels after UI and sim are ready
+      // 7. Phase 5 interactive drawers
       if (this.ui && typeof this.ui.initPhase5Controls === 'function') {
-        // Defer to next frame to ensure DOM is fully ready
         requestAnimationFrame(() => {
           this.ui.initPhase5Controls();
         });
       }
     }
 
+    initMapLibreIntegration() {
+      const networkData = (typeof NETWORK_DATA !== 'undefined') ? NETWORK_DATA : null;
+
+      if (typeof window.mapRenderer !== 'undefined' && window.mapRenderer) {
+        this.mapRenderer = window.mapRenderer;
+      } else if (typeof MapRenderer !== 'undefined') {
+        this.mapRenderer = new MapRenderer();
+      }
+
+      if (typeof window.vehicleLayerInstance !== 'undefined' && window.vehicleLayerInstance) {
+        this.vehicleLayer = window.vehicleLayerInstance;
+      } else if (typeof VehicleLayer !== 'undefined') {
+        this.vehicleLayer = new VehicleLayer();
+      }
+
+      if (typeof window.cameraDirectorInstance !== 'undefined' && window.cameraDirectorInstance) {
+        this.cameraDirector = window.cameraDirectorInstance;
+      } else if (typeof CameraDirector !== 'undefined') {
+        this.cameraDirector = new CameraDirector();
+      }
+
+      if (!this.mapRenderer) return;
+
+      this.mapRenderer.configure({
+        projection: this.projection,
+        signalManager: this.signals,
+        routingController: this.routingController,
+        sim: this.sim,
+        networkData
+      });
+
+      this.mapRenderer.initMap().then((map) => {
+        if (!map) return;
+        this.map = map;
+        window.mapInstance = map;
+        this.canvas = map.getCanvas();
+
+        if (this.vehicleLayer) {
+          this.vehicleLayer.configure({
+            map,
+            projection: this.projection,
+            signalManager: this.signals,
+            sim: this.sim,
+            ambulance: this.ambulance,
+            traffic: this.traffic
+          });
+          this.vehicleLayer.init();
+        }
+
+        if (this.cameraDirector) {
+          this.cameraDirector.configure({
+            map,
+            projection: this.projection,
+            sim: this.sim,
+            ambulance: this.ambulance
+          });
+          this.cameraDirector.init();
+        }
+      });
+    }
+
     /**
      * Constructs the deterministic SimulationEngine + SmartRoutingController
-     * and dispatches the ambulance onto a router-computed route. The engine
-     * is the single authority over ambulance kinematics; the AmbulanceManager
-     * mirrors its state onto the Three.js mesh each frame.
-     * @param {number} [seed=42] - Random seed for deterministic simulation
-     * @param {string} [demandProfile='peak'] - 'peak' or 'off_peak'
-     * @param {number} [durationSec=600] - Simulation duration
+     * and dispatches the ambulance onto a router-computed route.
      */
     initSimulation(seed = 42, demandProfile = 'peak', durationSec = 600) {
-      // network.js / simulation.js publish a namespace object on window
-      // ({SimulationNetwork, SimulationEdge, ...}) rather than the bare class,
-      // so resolve the constructors off the namespace when present.
       const networkNs = (typeof SimulationNetwork !== 'undefined') ? SimulationNetwork : null;
       const simNs = (typeof SimulationEngine !== 'undefined') ? SimulationEngine : null;
       const SimulationNetworkCtor = (networkNs && networkNs.SimulationNetwork) ? networkNs.SimulationNetwork : networkNs;
@@ -260,6 +197,15 @@
         this.sim.setDemandProfile(demandProfile);
         this.simSeed = seed;
         this.simDuration = durationSec;
+        this._ambOdometerM = 0.0;
+        this._simAccumulator = 0.0;
+
+        // Warm up 35 seconds of initial network traffic BEFORE dispatching ambulance
+        // so streets & junctions are populated when the ambulance starts from Majestic.
+        for (let i = 0; i < 350; i += 1) {
+          this.sim.step(this._simStepSec);
+          if (this.signals) this.signals.update(this._simStepSec);
+        }
 
         if (typeof RoutingEngine !== 'undefined') {
           const graph = new RoutingEngine.RoadGraph(NETWORK_DATA, seed);
@@ -270,25 +216,49 @@
           this.routingController = controller;
           this.simGraph = graph;
 
-          // Plan the ambulance's route with the authoritative router and
-          // dispatch it on that exact edge list. The destination is the
-          // hospital the ambulance is configured for.
           const amb = this.ambulance;
           const destinationHospital = amb ? amb.destinationHospital : 'hosp_victoria_01';
           const destNode = this._hospitalIngressNode(destinationHospital);
-          const startNode = this._nearestNetworkNode(amb ? amb.position : null);
+          const startNode = this._nearestNetworkNode(amb ? amb.position : null) || 'node_majestic';
           if (destNode && startNode) {
+            controller.setDestination(destNode, destinationHospital);
             const route = planner.findRouteEnhanced(startNode, destNode, { isPreempted: true });
             if (route && route.path.length > 0) {
               const ambId = amb && amb.vehicleId ? amb.vehicleId : 'amb_1';
+              this._ambId = ambId;
               this.sim.addAmbulance(ambId, route.path, destinationHospital);
-              if (amb) amb.attachSimulation(this.sim, ambId);
+              if (amb) {
+                amb.attachSimulation(this.sim, ambId);
+                amb.currentRoute = route.path;
+              }
+              // Step 26s so amb_1 is actively cruising down Kempegowda Rd with
+              // live Tier-2 signal preemption & Green Wave beam active right on load.
+              for (let j = 0; j < 260; j += 1) {
+                this.sim.step(this._simStepSec);
+                if (this.signals) this.signals.update(this._simStepSec);
+                const ambVeh = this.sim.vehicles.get(this._ambId);
+                if (ambVeh) this._ambOdometerM += ambVeh.v * this._simStepSec;
+              }
               console.log(`[Application] Ambulance dispatched: ${route.path.length} edges, `
                 + `${route.distance.toFixed(0)} m, ETA ${route.totalTime.toFixed(1)} s`);
             } else {
               console.warn(`Application: no route from ${startNode} to ${destNode}`);
             }
           }
+        }
+
+        // Re-bind Stage 6 modules if simulation was reset
+        if (this.mapRenderer) {
+          this.mapRenderer.configure({
+            sim: this.sim,
+            routingController: this.routingController
+          });
+        }
+        if (this.vehicleLayer) {
+          this.vehicleLayer.configure({ sim: this.sim });
+        }
+        if (this.cameraDirector) {
+          this.cameraDirector.configure({ sim: this.sim });
         }
 
         window.simInstance = this.sim;
@@ -299,9 +269,6 @@
       }
     }
 
-    /**
-     * Resolve a hospital id to its ingress node id from the network data.
-     */
     _hospitalIngressNode(hospitalId) {
       if (!NETWORK_DATA || !NETWORK_DATA.hospitals) return null;
       for (const h of NETWORK_DATA.hospitals) {
@@ -310,11 +277,8 @@
       return null;
     }
 
-    /**
-     * Find the network node nearest the ambulance's current world position.
-     */
     _nearestNetworkNode(worldPos) {
-      if (!NETWORK_DATA || !NETWORK_DATA.nodes) return null;
+      if (!NETWORK_DATA || !NETWORK_DATA.nodes || !worldPos) return null;
       let best = null;
       let bestDist = Infinity;
       for (const n of NETWORK_DATA.nodes) {
@@ -327,12 +291,6 @@
       return best;
     }
 
-    /**
-     * Toggles AI Green Corridor active state (ON vs. Baseline OFF).
-     * When toggled OFF: signals do NOT preempt, civilian vehicles do NOT yield (baseline demonstration).
-     * When toggled ON: signals preempt and civilian vehicles yield.
-     * @returns {boolean} New AI Corridor active state
-     */
     toggleAiCorridor() {
       this.aiCorridorActive = !this.aiCorridorActive;
 
@@ -350,7 +308,6 @@
         btnDeckCorridor.classList.toggle('highlight-green', this.aiCorridorActive);
       }
 
-      // If toggled OFF, restore any preempted signals to regular cycle
       if (!this.aiCorridorActive && this.signals) {
         if (this.signals.preemptedSignals) {
           this.signals.preemptedSignals.clear();
@@ -367,7 +324,6 @@
         }
       }
 
-      // Regulate autonomous ambulance cruising speed
       if (this.ambulance) {
         this.ambulance.priorityActive = this.aiCorridorActive;
         this.ambulance.autonomousCruisingSpeedKmh = this.aiCorridorActive ? 50.0 : 16.0;
@@ -376,54 +332,9 @@
       return this.aiCorridorActive;
     }
 
-    /**
-     * Hooks up the interactive Command Deck buttons and Keyboard shortcuts.
-     */
     initDeckControls() {
-      // Camera Mode Buttons
-      const camBtns = {
-        chase: document.getElementById('btn-cam-chase'),
-        cockpit: document.getElementById('btn-cam-cockpit'),
-        aerial: document.getElementById('btn-cam-aerial'),
-        orbit: document.getElementById('btn-cam-orbit')
-      };
-
-      const setCameraMode = (mode) => {
-        this.activeCameraMode = mode;
-        Object.values(camBtns).forEach(b => b && b.classList.remove('active'));
-        if (camBtns[mode]) camBtns[mode].classList.add('active');
-
-        if (mode === 'orbit') {
-          if (this.controls) this.controls.enabled = true;
-        } else {
-          if (this.controls) this.controls.enabled = false;
-        }
-
-        if (this.cameraController && typeof this.cameraController.setMode === 'function') {
-          this.cameraController.setMode(mode);
-        }
-
-        // Hide ambulance mesh in cockpit mode, show in all other modes
-        if (this.ambulance && typeof this.ambulance.setMeshVisibility === 'function') {
-          this.ambulance.setMeshVisibility(mode !== 'cockpit');
-        }
-      };
-
-      if (camBtns.chase) camBtns.chase.addEventListener('click', () => setCameraMode('chase'));
-      if (camBtns.cockpit) camBtns.cockpit.addEventListener('click', () => setCameraMode('cockpit'));
-      if (camBtns.aerial) camBtns.aerial.addEventListener('click', () => setCameraMode('aerial'));
-      if (camBtns.orbit) camBtns.orbit.addEventListener('click', () => setCameraMode('orbit'));
-
-      // Mission Controls
-      const btnMode = document.getElementById('btn-mode-toggle');
-      if (btnMode) {
-        btnMode.addEventListener('click', () => {
-          if (this.ambulance && typeof this.ambulance.toggleMode === 'function') {
-            const isManual = this.ambulance.toggleMode();
-            btnMode.innerText = isManual ? 'Autonomous [M]' : 'Manual Drive [M]';
-            btnMode.classList.toggle('active', isManual);
-          }
-        });
+      if (this.ui && typeof this.ui.initCameraPresetButtons === 'function') {
+        this.ui.initCameraPresetButtons();
       }
 
       const btnSiren = document.getElementById('btn-siren-toggle');
@@ -435,28 +346,6 @@
           if (this.ambulance && typeof this.ambulance.toggleSiren === 'function') {
             const active = this.ambulance.toggleSiren();
             btnSiren.classList.toggle('active', active);
-          }
-        });
-      }
-
-      const btnRain = document.getElementById('btn-rain-toggle');
-      if (btnRain) {
-        btnRain.addEventListener('click', () => {
-          if (this.atmosphere) {
-            const w = this.atmosphere.toggleWeather();
-            btnRain.innerText = (w === 'rain') ? 'Weather: Rain [R]' : 'Weather: Clear [R]';
-            btnRain.classList.toggle('active', w === 'rain');
-          }
-        });
-      }
-
-      const btnDay = document.getElementById('btn-day-toggle');
-      if (btnDay) {
-        btnDay.addEventListener('click', () => {
-          if (this.atmosphere) {
-            const preset = this.atmosphere.cycleTimeOfDay();
-            const label = preset.charAt(0).toUpperCase() + preset.slice(1);
-            btnDay.innerText = `Time: ${label} [N]`;
           }
         });
       }
@@ -477,25 +366,14 @@
         btnExport.addEventListener('click', () => {
           if (this.ui && typeof this.ui.exportBenchmarkJson === 'function') {
             this.ui.exportBenchmarkJson();
-          } else if (this.benchmark && typeof this.benchmark.exportBenchmarkData === 'function') {
-            console.log('Benchmark Telemetry Export:', this.benchmark.exportBenchmarkData());
           }
         });
       }
 
-      // Keyboard Shortcuts
       window.addEventListener('keydown', (e) => {
-        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
         const key = e.key.toLowerCase();
-
-        if (key === '1') setCameraMode('chase');
-        else if (key === '2') setCameraMode('cockpit');
-        else if (key === '3') setCameraMode('aerial');
-        else if (key === '4') setCameraMode('orbit');
-        else if (key === 'r' && btnRain) btnRain.click();
-        else if (key === 'n' && btnDay) btnDay.click();
-        else if (key === 's' && btnSiren) btnSiren.click();
-        else if (key === 'm' && btnMode) btnMode.click();
+        if (key === 's' && btnSiren) btnSiren.click();
         else if (key === 'g') {
           if (this.ui && typeof this.ui.toggleCorridorMode === 'function') {
             this.ui.toggleCorridorMode();
@@ -506,25 +384,15 @@
       });
     }
 
-    /**
-     * Window viewport resize listener.
-     */
     initEvents() {
       if (typeof window === 'undefined') return;
-
       window.addEventListener('resize', () => {
-        if (this.camera && this.renderer) {
-          this.camera.aspect = window.innerWidth / window.innerHeight;
-          this.camera.updateProjectionMatrix();
-          this.renderer.setSize(window.innerWidth, window.innerHeight);
-          this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
+        if (this.map && typeof this.map.resize === 'function') {
+          this.map.resize();
         }
       });
     }
 
-    /**
-     * Smoothly dismisses the loading splash screen.
-     */
     dismissLoadingScreen() {
       if (typeof document === 'undefined') return;
       const loader = document.getElementById('loading-screen');
@@ -533,14 +401,11 @@
           loader.style.opacity = '0';
           setTimeout(() => {
             loader.style.display = 'none';
-          }, 600);
+          }, 500);
         }, 350);
       }
     }
 
-    /**
-     * Continuous 60 FPS animation loop.
-     */
     animate() {
       if (typeof requestAnimationFrame !== 'undefined') {
         requestAnimationFrame(this.animate);
@@ -549,7 +414,6 @@
       const dt = this.clock ? Math.min(this.clock.getDelta(), 0.1) : 0.016;
       const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
 
-      // FPS Measurement & Telemetry Display Update
       this.frameCount++;
       if (now - this.lastFpsUpdate >= 500) {
         this.fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
@@ -557,101 +421,67 @@
           this.fpsElement.innerText = `${this.fps} FPS`;
         }
         if (this.preemptElement && this.signals) {
-          this.preemptElement.innerText = `${this.signals.getPreemptedCount()}`;
+          const allSigs = typeof this.signals.getAllSignals === 'function' ? this.signals.getAllSignals() : [];
+          const activePreempts = allSigs.filter(s => s.isPreempted || s.currentPhase === 'PREEMPT_GREEN').length;
+          this.preemptElement.innerText = `${Math.max(this.signals.getPreemptedCount(), activePreempts)}`;
         }
         this.frameCount = 0;
         this.lastFpsUpdate = now;
-      }
-
-      // Update Subsystems: Camera & Controls
-      if (this.cameraController && typeof this.cameraController.update === 'function') {
-        this.cameraController.update(dt);
-      } else if (this.controls && this.controls.enabled) {
-        this.controls.update();
-      }
-
-      if (this.atmosphere) {
-        const camPos = this.camera ? this.camera.position : null;
-        this.atmosphere.update(dt, camPos);
       }
 
       if (this.signals) {
         this.signals.update(dt);
       }
 
-      // Stage 4: the deterministic simulation engine is the single authority
-      // over ambulance kinematics and signal preemption. When it is attached
-      // the legacy distance-horizon preemption path is NOT run: the engine's
-      // SmartRoutingController owns the priority-hold lifecycle and the signal
-      // manager's own state machine walks the safe amber/all-red transition.
-      // The engine advances on a fixed 0.1 s accumulator so its tick sequence
-      // is frame-rate independent (and identical to the Node benchmark runs).
       if (this.sim) {
         this._simAccumulator += dt;
         let steps = 0;
         while (this._simAccumulator >= this._simStepSec && steps < 20) {
           this.sim.step(this._simStepSec);
+          const ambVeh = this.sim.vehicles.get(this._ambId);
+          if (ambVeh) {
+            this._ambOdometerM += ambVeh.v * this._simStepSec;
+          }
           this._simAccumulator -= this._simStepSec;
           steps += 1;
         }
         if (steps >= 20) this._simAccumulator = 0.0;
       }
 
-      // Update downstream modules if present
       if (this.ambulance) {
         this.ambulance.update(dt);
         if (this.speedElement && typeof this.ambulance.getSpeedKmh === 'function') {
           this.speedElement.innerText = `${this.ambulance.getSpeedKmh().toFixed(1)} km/h`;
         }
-        // Signal Preemption: Only active when AI Green Corridor is ON, and only
-        // when the simulation is NOT driving it (the sim owns preemption).
-        if (this.signals && typeof this.ambulance.getPosition === 'function'
-            && !this.sim && this.aiCorridorActive) {
-          const ambPos = this.ambulance.getPosition();
-          const speed = this.ambulance.getSpeedKmh ? this.ambulance.getSpeedKmh() : 40.0;
-          const route = this.ambulance.getActiveRouteJunctions ? this.ambulance.getActiveRouteJunctions() : [];
-          this.signals.updatePreemption(ambPos, speed, route);
-        }
       }
 
-      if (this.traffic) {
-        // When AI Green Corridor is OFF: civilian vehicles do NOT yield (parting wave disabled)
-        if (!this.aiCorridorActive && this.ambulance) {
-          const baselineCone = (typeof this.ambulance.getClearanceCone === 'function')
-            ? Object.assign({}, this.ambulance.getClearanceCone(), { sirenActive: false })
-            : null;
-          this.traffic.update(dt, baselineCone, this.signals);
-        } else {
-          this.traffic.update(dt, this.ambulance, this.signals);
-        }
-        
-        // Sync civilian vehicles from SimulationEngine if available
-        if (this.sim && typeof this.traffic.syncFromSimulation === 'function') {
-          this.traffic.syncFromSimulation(this.sim);
-        }
+      if (this.traffic && typeof this.traffic.update === 'function') {
+        const coneOrAmb = this.aiCorridorActive ? this.ambulance : null;
+        this.traffic.update(dt, coneOrAmb, this.signals);
+      }
+
+      if (this.mapRenderer && typeof this.mapRenderer.syncWithThree === 'function') {
+        this.mapRenderer.syncWithThree(dt);
+      }
+
+      if (this.vehicleLayer && typeof this.vehicleLayer.update === 'function') {
+        this.vehicleLayer.update(dt);
+      }
+
+      if (this.cameraDirector && typeof this.cameraDirector.update === 'function') {
+        this.cameraDirector.update(dt);
       }
 
       if (this.benchmark) {
-        // Pass simulation engine for live metrics
         this.benchmark.update(dt, this.ambulance, this.sim);
-        if (this.savingsElement && typeof this.benchmark.getMetrics === 'function') {
-          const m = this.benchmark.getMetrics(this.sim);
-          this.savingsElement.innerText = `${m.minutesSaved.toFixed(1)} min`;
-        }
       }
 
       if (this.ui) {
         this.ui.update(dt);
       }
-
-      // Render Scene
-      if (this.renderer && this.scene && this.camera) {
-        this.renderer.render(this.scene, this.camera);
-      }
     }
   }
 
-  // Auto-instantiate upon DOM readiness in browser environment
   if (typeof window !== 'undefined') {
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
       window.appInstance = new Application();

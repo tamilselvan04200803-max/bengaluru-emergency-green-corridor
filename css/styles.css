@@ -36,8 +36,9 @@ body, html {
   color: var(--text-main);
 }
 
-/* Fullscreen WebGL Canvas */
-#webgl-canvas {
+/* Fullscreen WebGL / MapLibre Container */
+#webgl-canvas,
+#map-container {
   position: absolute;
   top: 0;
   left: 0;
@@ -45,6 +46,13 @@ body, html {
   height: 100%;
   display: block;
   z-index: 1;
+}
+
+/* Keep MapLibre navigation controls clear of left dock & bottom command deck */
+.maplibregl-ctrl-bottom-left {
+  bottom: 82px !important;
+  left: 16px !important;
+  z-index: 80;
 }
 
 /* Loading Splash Screen */
@@ -204,16 +212,19 @@ body, html {
 /* Bottom Command Deck */
 #command-deck {
   position: absolute;
-  bottom: 20px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 22px;
+  gap: 8px 18px;
+  max-width: calc(100vw - 32px);
   background: var(--panel-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  padding: 10px 22px;
+  padding: 9px 18px;
   border-radius: 14px;
   border: 1px solid var(--panel-border);
   box-shadow: 0 10px 36px rgba(0, 0, 0, 0.65);
@@ -263,23 +274,24 @@ body, html {
   box-shadow: 0 0 14px rgba(2, 132, 199, 0.7);
 }
 
-/* Quick Info / Legend Drawer */
+/* Quick Info / Legend Drawer — bottom-right above command deck */
 #hud-legend {
-  position: absolute;
-  top: 86px;
-  left: 20px;
+  position: fixed;
+  bottom: 82px;
+  right: 16px;
+  width: 288px;
   padding: 10px 14px;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.78);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
   font-size: 11px;
   color: var(--text-muted);
   z-index: 90;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: 260px;
+  gap: 5px;
 }
 
 .legend-item {
@@ -301,29 +313,44 @@ body, html {
 .legend-dot.blue { background: #0284c7; box-shadow: 0 0 6px #0284c7; }
 
 /* Responsive adjustments */
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   #hud-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    padding: 8px 14px;
+    gap: 8px;
+  }
+  #hud-header h1 {
+    font-size: 13px;
+  }
+  .hud-sub {
+    display: none;
   }
   .hud-telemetry-strip {
-    width: 100%;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  #command-deck {
-    flex-wrap: wrap;
-    width: 92%;
-    justify-content: center;
+    gap: 14px;
   }
   #benchmark-hud {
-    width: calc(100vw - 40px);
-    top: auto;
-    bottom: 90px;
-    right: 20px;
-    max-height: 48vh;
-    overflow-y: auto;
+    width: 240px;
+    top: 70px;
+    right: 10px;
+    max-height: calc(100vh - 250px);
+  }
+  #hud-legend {
+    width: 240px;
+    right: 10px;
+    bottom: 92px;
+    font-size: 10px;
+  }
+  .panel-dock {
+    left: 10px;
+    top: 70px;
+  }
+  #command-deck {
+    bottom: 10px;
+    padding: 6px 12px;
+    gap: 6px 10px;
+  }
+  .deck-btn {
+    padding: 5px 10px;
+    font-size: 11px;
   }
 }
 
@@ -332,23 +359,54 @@ body, html {
    ========================================================================== */
 
 #benchmark-hud {
-  position: absolute;
-  top: 86px;
-  right: 20px;
-  width: 440px;
-  max-width: calc(100vw - 40px);
+  position: fixed;
+  top: 82px;
+  right: 16px;
+  width: 288px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 285px);
+  overflow-y: auto;
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--panel-border);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.70);
   z-index: 95;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   pointer-events: auto;
+}
+
+.live-telemetry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.telemetry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.telemetry-row:last-child {
+  border-bottom: none;
+}
+
+.telemetry-label {
+  color: var(--text-muted);
+}
+
+.telemetry-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-main);
 }
 
 /* Live AI Green Corridor ON vs OFF Toggle Button */
@@ -854,33 +912,32 @@ body, html {
    Phase 5 Interactive Control Panels
    ========================================================================== */
 
-/* Panel Dock Bar - Vertical left edge at 16px to avoid overlapping command-deck */
+/* Panel Dock Bar - Vertical left edge pinned cleanly below header */
 .panel-dock {
   position: fixed;
   left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 82px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   z-index: 1000;
-  padding: 12px 8px;
+  padding: 8px 6px;
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .dock-btn {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border: none;
   border-radius: 50%;
   background: rgba(30, 41, 59, 0.8);
   color: var(--text-main);
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -900,10 +957,11 @@ body, html {
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
 }
 
-/* Base Control Panel - Drawers offset to left: 84px (16px dock + 44px btn + 12px padding + 12px gap) */
+/* Base Control Panel - Drawers offset to left: 78px, top: 82px */
 .control-panel {
   position: fixed;
-  left: 84px;
+  top: 82px;
+  left: 78px;
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -912,8 +970,8 @@ body, html {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   z-index: 900;
   min-width: 320px;
-  max-width: 420px;
-  max-height: 80vh;
+  max-width: 460px;
+  max-height: calc(100vh - 172px);
   overflow-y: auto;
   display: none;
   flex-direction: column;
@@ -1088,13 +1146,13 @@ body, html {
   flex-wrap: wrap;
 }
 
-/* Minimap */
+/* Minimap — opens in left drawer area so it never collides with right HUD */
 .minimap-container {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  width: 256px;
-  height: 256px;
+  top: 82px;
+  left: 78px;
+  width: 268px;
+  height: 268px;
   z-index: 800;
   border-radius: 12px;
   overflow: hidden;
@@ -1294,8 +1352,8 @@ body, html {
 
 /* Sensor Panel */
 .sensor-panel {
-  bottom: 90px;
-  left: 84px;
+  top: 82px;
+  left: 78px;
 }
 
 .sensor-info {
@@ -1463,8 +1521,8 @@ body, html {
 
 /* Replay Panel */
 .replay-panel {
-  bottom: 90px;
-  left: 84px;
+  top: 82px;
+  left: 78px;
 }
 
 /* Export Panel */
@@ -1501,34 +1559,18 @@ body, html {
   }
 }
 
-@media (max-width: 1024px) {
-  .panel-dock {
-    bottom: 10px;
-    left: auto;
-    top: auto;
-    right: 10px;
-    padding: 6px 10px;
-    flex-direction: row;
-    transform: none;
-  }
-  
-  .dock-btn {
-    width: 38px;
-    height: 38px;
-    font-size: 16px;
-  }
-  
+@media (max-width: 960px) {
   .control-panel {
     min-width: 280px;
-    max-width: 90vw;
-    left: 10px;
-    right: 10px;
+    max-width: calc(100vw - 320px);
+    left: 64px;
+    top: 70px;
   }
   
   .comparison-panel {
-    min-width: 320px;
-    left: 10px;
-    transform: none;
+    min-width: 300px;
+    left: 64px;
+    top: 70px;
   }
   
   .comparison-grid {

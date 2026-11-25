@@ -265,7 +265,8 @@
       if (this.elements.speedometerValue) {
         this.elements.speedometerValue.innerText = `${speedKmh.toFixed(1)}`;
       }
-      if (this.elements.speedometerGauge) {
+      // Only overwrite speedometerGauge.innerText in headless/Node mock mode (preserves SVG gauge in DOM)
+      if (this.isNode && this.elements.speedometerGauge) {
         this.elements.speedometerGauge.innerText = `${speedKmh.toFixed(1)} km/h`;
       }
       if (this.elements.speedDialFill) {
@@ -278,62 +279,77 @@
     }
 
     /**
-     * Renders Live Simulation Telemetry card (replaces right HUD card).
-     * Shows real-time data from SimulationEngine.
-     * @param {Object} m - Metrics snapshot from BenchmarkEngine
-     * @param {SimulationEngine} simEngine - Live simulation engine
+     * Renders Live Simulation Telemetry card (single-column right HUD card).
+     * Shows real-time measured data from SimulationEngine — zero fabricated estimates.
      */
     renderLiveTelemetry(m, simEngine) {
       if (!this.elements.liveTelemetryCard || !this.elements.liveTelemetryContent) return;
       if (!simEngine) return;
 
-      const simMetrics = simEngine.getMetrics ? simEngine.getMetrics() : null;
-      if (!simMetrics) return;
+      const simMetrics = simEngine.getMetrics ? simEngine.getMetrics() : {};
+      const simTimeSec = Number.isFinite(simMetrics.time) ? simMetrics.time : (simEngine.time || 0);
+      const ambSpeed = Number.isFinite(simMetrics.ambulanceSpeedKmh) ? simMetrics.ambulanceSpeedKmh : 0;
+      const distKm = (this.app && typeof this.app._ambOdometerM === 'number')
+        ? (this.app._ambOdometerM / 1000.0)
+        : (simMetrics.ambulanceDistanceKm || 0);
+      const activeSignals = (simEngine.signalManager && typeof simEngine.signalManager.getAllSignals === 'function')
+        ? simEngine.signalManager.getAllSignals().length
+        : 0;
+      const totalVeh = Number.isFinite(simMetrics.vehicleCount) ? simMetrics.vehicleCount : (simEngine.vehicles ? simEngine.vehicles.size : 0);
+      const ambCount = simEngine.ambulances ? simEngine.ambulances.size : 0;
+      const civCount = Math.max(0, totalVeh - ambCount);
+      const congestedEdges = simMetrics.totalCongestionEdges || 0;
+      const clearRatePct = ((simMetrics.routeClearRate || 0) * 100).toFixed(1);
+      const signalOverrides = simMetrics.signalInterventions || 0;
+      const redWait = (simMetrics.ambulanceRedLightWaitSec || 0).toFixed(1);
+      const log = simMetrics.decisionLog || simEngine.decisionLog || [];
+      const tier1Count = log.filter(d => d.tier === 'TIER1_REROUTE' || d.tier === 'Tier-1' || d.tier === 1).length;
+      const tier2Count = log.filter(d => d.tier === 'TIER2_PRIORITY' || d.tier === 'Tier-2' || d.tier === 2).length;
 
       const html = `
         <div class="telemetry-row">
           <span class="telemetry-label">Sim Time:</span>
-          <span class="telemetry-value">${simMetrics.simulationTimeSec?.toFixed(1) || 0.0}s</span>
+          <span class="telemetry-value" style="color:var(--accent-cyan);">${simTimeSec.toFixed(1)}s</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Ambulance Speed:</span>
-          <span class="telemetry-value">${simMetrics.ambulanceSpeedKmh?.toFixed(1) || 0.0} km/h</span>
+          <span class="telemetry-value" style="color:var(--accent-green);">${ambSpeed.toFixed(1)} km/h</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Distance Traveled:</span>
-          <span class="telemetry-value">${simMetrics.ambulanceDistanceKm?.toFixed(2) || 0.0} km</span>
+          <span class="telemetry-value">${distKm.toFixed(2)} km</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Active Signals:</span>
-          <span class="telemetry-value">${simMetrics.activeSignalCount || 0}</span>
+          <span class="telemetry-value">${activeSignals}</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Civilian Vehicles:</span>
-          <span class="telemetry-value">${simMetrics.civilianVehicleCount || 0}</span>
+          <span class="telemetry-value">${civCount}</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Congested Edges:</span>
-          <span class="telemetry-value">${simMetrics.totalCongestionEdges || 0}</span>
+          <span class="telemetry-value" style="color:var(--accent-red);">${congestedEdges}</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Route Clear Rate:</span>
-          <span class="telemetry-value">${((simMetrics.routeClearRate || 0) * 100).toFixed(1)}%</span>
+          <span class="telemetry-value" style="color:var(--accent-green);">${clearRatePct}%</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Signal Overrides:</span>
-          <span class="telemetry-value">${simMetrics.signalInterventions || 0}</span>
+          <span class="telemetry-value" style="color:var(--accent-amber);">${signalOverrides}</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Red Light Wait:</span>
-          <span class="telemetry-value">${(simMetrics.ambulanceRedLightWaitSec || 0).toFixed(1)}s</span>
+          <span class="telemetry-value" style="color:var(--accent-red);">${redWait}s</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Tier-1 Reroutes:</span>
-          <span class="telemetry-value">${(simMetrics.decisionLog || []).filter(d => d.tier === 'Tier-1').length}</span>
+          <span class="telemetry-value" style="color:var(--accent-cyan);">${tier1Count}</span>
         </div>
         <div class="telemetry-row">
           <span class="telemetry-label">Tier-2 Priority:</span>
-          <span class="telemetry-value">${(simMetrics.decisionLog || []).filter(d => d.tier === 'Tier-2').length}</span>
+          <span class="telemetry-value" style="color:var(--accent-amber);">${tier2Count}</span>
         </div>
       `;
       this.elements.liveTelemetryContent.innerHTML = html;
@@ -401,6 +417,81 @@
     }
 
     // ============================================================
+    // Stage 6: CameraDirector Bottom-Bar Preset Buttons
+    // ============================================================
+
+    initCameraPresetButtons() {
+      if (this.isNode) return;
+
+      const viewBtns = {
+        silkBoard: document.getElementById('btn-view-silk-board'),
+        majesticToVictoria: document.getElementById('btn-view-majestic-victoria'),
+        fullCity: document.getElementById('btn-view-full-city'),
+        chaseAmbulance: document.getElementById('btn-view-chase-ambulance'),
+        dualAvsD: document.getElementById('btn-view-dual-ad')
+      };
+
+      const setActiveBtn = (activeKey) => {
+        Object.entries(viewBtns).forEach(([k, btn]) => {
+          if (btn) btn.classList.toggle('active', k === activeKey);
+        });
+      };
+
+      const getDirector = () => (this.app && this.app.cameraDirector) || window.cameraDirectorInstance || null;
+
+      if (viewBtns.silkBoard) {
+        viewBtns.silkBoard.addEventListener('click', () => {
+          setActiveBtn('silkBoard');
+          const d = getDirector();
+          if (d && typeof d.flyToSilkBoard === 'function') d.flyToSilkBoard();
+        });
+      }
+
+      if (viewBtns.majesticToVictoria) {
+        viewBtns.majesticToVictoria.addEventListener('click', () => {
+          setActiveBtn('majesticToVictoria');
+          const d = getDirector();
+          if (d && typeof d.flyToMajesticToVictoria === 'function') d.flyToMajesticToVictoria();
+        });
+      }
+
+      if (viewBtns.fullCity) {
+        viewBtns.fullCity.addEventListener('click', () => {
+          setActiveBtn('fullCity');
+          const d = getDirector();
+          if (d && typeof d.flyToFullCity === 'function') d.flyToFullCity();
+        });
+      }
+
+      if (viewBtns.chaseAmbulance) {
+        viewBtns.chaseAmbulance.addEventListener('click', () => {
+          setActiveBtn('chaseAmbulance');
+          const d = getDirector();
+          if (d && typeof d.chaseAmbulance === 'function') d.chaseAmbulance();
+        });
+      }
+
+      if (viewBtns.dualAvsD) {
+        viewBtns.dualAvsD.addEventListener('click', () => {
+          setActiveBtn('dualAvsD');
+          const d = getDirector();
+          if (d && typeof d.setDualMode === 'function') d.setDualMode('vs');
+          // Open A vs D Comparison drawer cleanly in single-active-drawer mode
+          if (this.elements && this.elements.panels && this.elements.panels['comparison-panel']) {
+            if (this.activePanel && this.activePanel !== 'comparison-panel') {
+              this.hidePanel(this.activePanel);
+              const prevDock = document.querySelector(`.dock-btn[data-panel="${this.activePanel}"]`);
+              if (prevDock) prevDock.classList.remove('active');
+            }
+            this.showPanel('comparison-panel');
+            const cmpDock = document.querySelector('.dock-btn[data-panel="comparison-panel"]');
+            if (cmpDock) cmpDock.classList.add('active');
+          }
+        });
+      }
+    }
+
+    // ============================================================
     // Phase 5: Interactive Control Panels
     // ============================================================
 
@@ -465,10 +556,15 @@
       this.elements.sensorConeCtx = this.elements.sensorConeCanvas ? this.elements.sensorConeCanvas.getContext('2d') : null;
 
       // Comparison panel
+      this.elements.comparisonScenarioSelect = document.getElementById('comparison-scenario-select');
+      this.elements.comparisonResults = document.getElementById('comparison-results');
+      this.elements.comparisonDeltas = document.getElementById('comparison-deltas');
+      this.elements.cmpAOutcome = document.getElementById('cmp-a-outcome');
       this.elements.cmpATime = document.getElementById('cmp-a-time');
       this.elements.cmpARed = document.getElementById('cmp-a-red');
       this.elements.cmpAStops = document.getElementById('cmp-a-stops');
       this.elements.cmpASpeed = document.getElementById('cmp-a-speed');
+      this.elements.cmpDOutcome = document.getElementById('cmp-d-outcome');
       this.elements.cmpDTime = document.getElementById('cmp-d-time');
       this.elements.cmpDRed = document.getElementById('cmp-d-red');
       this.elements.cmpDStops = document.getElementById('cmp-d-stops');
@@ -720,7 +816,7 @@
         y: canvas.height - (z * scale + offsetY)
       });
 
-      // Draw roads (dark charcoal #262d38)
+      // Draw roads (dark charcoal #334155)
       if (networkData && networkData.edges) {
         ctx.strokeStyle = '#334155';
         ctx.lineWidth = 2;
@@ -728,7 +824,8 @@
           if (!edge.polyline || edge.polyline.length < 2) return;
           ctx.beginPath();
           edge.polyline.forEach((pt, i) => {
-            const pos = worldToCanvas(pt[0], pt[1]);
+            const w = proj.latLonAltToCartesian(pt[1], pt[0], pt[2] || 920);
+            const pos = worldToCanvas(w.x, w.z);
             if (i === 0) ctx.moveTo(pos.x, pos.y);
             else ctx.lineTo(pos.x, pos.y);
           });
@@ -740,10 +837,11 @@
       if (this.app.signalManager && this.app.signalManager.getAllSignals) {
         const signals = this.app.signalManager.getAllSignals();
         signals.forEach(sig => {
-          if (!sig.positionENU) return;
-          const pos = worldToCanvas(sig.positionENU[0], sig.positionENU[2]);
+          const wp = sig.worldPos;
+          if (!wp) return;
+          const pos = worldToCanvas(wp.x, wp.z);
           const isPreempted = sig.isPreempted || sig.currentPhase === 'PREEMPT_GREEN';
-          ctx.fillStyle = isPreempted ? '#fbbf24' : (sig.currentPhase === 'GREEN' ? '#10b981' : '#ef4444');
+          ctx.fillStyle = isPreempted ? '#22d3ee' : (sig.currentPhase === 'GREEN' ? '#10b981' : '#ef4444');
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
           ctx.fill();
@@ -753,18 +851,21 @@
       // Draw ambulance route (green line)
       if (this.app.ambulance && this.app.ambulance.currentRoute) {
         const route = this.app.ambulance.currentRoute;
-        if (route && route.length > 1) {
+        if (route && route.length >= 1) {
           ctx.strokeStyle = '#10b981';
           ctx.lineWidth = 3;
           ctx.setLineDash([8, 4]);
           ctx.beginPath();
-          route.forEach((edgeId, i) => {
+          let started = false;
+          route.forEach((edgeId) => {
             const edge = networkData.edges.find(e => e.id === edgeId);
             if (edge && edge.polyline && edge.polyline.length > 0) {
-              const pt = edge.polyline[0];
-              const pos = worldToCanvas(pt[0], pt[1]);
-              if (i === 0) ctx.moveTo(pos.x, pos.y);
-              else ctx.lineTo(pos.x, pos.y);
+              edge.polyline.forEach(pt => {
+                const w = proj.latLonAltToCartesian(pt[1], pt[0], pt[2] || 920);
+                const pos = worldToCanvas(w.x, w.z);
+                if (!started) { ctx.moveTo(pos.x, pos.y); started = true; }
+                else ctx.lineTo(pos.x, pos.y);
+              });
             }
           });
           ctx.stroke();
@@ -784,7 +885,8 @@
               ctx.globalAlpha = 0.7;
               ctx.beginPath();
               edge.polyline.forEach((pt, i) => {
-                const pos = worldToCanvas(pt[0], pt[1]);
+                const w = proj.latLonAltToCartesian(pt[1], pt[0], pt[2] || 920);
+                const pos = worldToCanvas(w.x, w.z);
                 if (i === 0) ctx.moveTo(pos.x, pos.y);
                 else ctx.lineTo(pos.x, pos.y);
               });
@@ -796,14 +898,13 @@
       }
 
       // Draw ambulance position
-      if (this.app.ambulance && this.app.ambulance.mesh && this.app.ambulance.mesh.position) {
-        const pos = this.app.ambulance.mesh.position;
+      if (this.app.ambulance && this.app.ambulance.position) {
+        const pos = this.app.ambulance.position;
         const canvasPos = worldToCanvas(pos.x, pos.z);
-        // Ambulance icon (white triangle pointing in heading direction)
-        const heading = this.app.ambulance.currentHeading || 0;
+        const heading = this.app.ambulance.headingRad || 0;
         ctx.save();
         ctx.translate(canvasPos.x, canvasPos.y);
-        ctx.rotate(-heading - Math.PI / 2);
+        ctx.rotate(heading);
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.moveTo(0, -8);
@@ -811,7 +912,6 @@
         ctx.lineTo(-6, 6);
         ctx.closePath();
         ctx.fill();
-        // Inner dot
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.arc(0, 0, 3, 0, Math.PI * 2);
@@ -822,23 +922,21 @@
       // Draw hospital markers
       if (networkData && networkData.hospitals) {
         networkData.hospitals.forEach(hosp => {
-          if (!hosp.positionENU) return;
-          const pos = worldToCanvas(hosp.positionENU[0], hosp.positionENU[2]);
+          const p = hosp.bays && hosp.bays.bay_a && hosp.bays.bay_a.position;
+          if (!p) return;
+          const w = proj.latLonAltToCartesian(p.lat, p.lon, p.alt || 920);
+          const pos = worldToCanvas(w.x, w.z);
           ctx.fillStyle = '#ef4444';
           ctx.beginPath();
-          ctx.moveTo(pos.x, pos.y - 8);
-          ctx.lineTo(pos.x + 6, pos.y + 4);
-          ctx.lineTo(pos.x - 6, pos.y + 4);
-          ctx.closePath();
+          ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
           ctx.fill();
-          // Cross
           ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.moveTo(pos.x, pos.y - 4);
-          ctx.lineTo(pos.x, pos.y + 2);
-          ctx.moveTo(pos.x - 3, pos.y - 1);
-          ctx.lineTo(pos.x + 3, pos.y - 1);
+          ctx.moveTo(pos.x, pos.y - 3);
+          ctx.lineTo(pos.x, pos.y + 3);
+          ctx.moveTo(pos.x - 3, pos.y);
+          ctx.lineTo(pos.x + 3, pos.y);
           ctx.stroke();
         });
       }
@@ -947,26 +1045,34 @@
       let tier1 = 0, tier2 = 0;
       entries.innerHTML = '';
 
-      // Show most recent first, limit to 50
+      const isTier1 = (t) => t === 1 || t === 'TIER1_REROUTE' || t === 'Tier-1';
+      const isTier2 = (t) => t === 2 || t === 'TIER2_PRIORITY' || t === 'Tier-2';
+
+      log.forEach(entry => {
+        if (isTier1(entry.tier)) tier1++;
+        else if (isTier2(entry.tier)) tier2++;
+      });
+
       const filtered = log
-        .filter(entry => (entry.tier === 1 && showTier1) || (entry.tier === 2 && showTier2))
+        .filter(entry => (isTier1(entry.tier) && showTier1) || (isTier2(entry.tier) && showTier2) || (!isTier1(entry.tier) && !isTier2(entry.tier)))
         .slice(-50)
         .reverse();
 
       filtered.forEach(entry => {
-        if (entry.tier === 1) tier1++;
-        else tier2++;
-
+        const t2 = isTier2(entry.tier);
         const div = document.createElement('div');
-        div.className = `log-entry ${entry.tier === 2 ? 'tier2' : ''}`;
-        const timeStr = new Date(entry.timestamp).toLocaleTimeString();
+        div.className = `log-entry ${t2 ? 'tier2' : ''}`;
+        const timeStr = typeof entry.timestamp === 'number' && entry.timestamp < 1e9
+          ? `t=${entry.timestamp.toFixed(1)}s`
+          : new Date(entry.timestamp).toLocaleTimeString();
+        const msg = entry.reason || entry.message || `${entry.fromEdge || ''} → ${entry.toEdge || ''}`;
         div.innerHTML = `
           <div class="log-entry-header">
-            <span class="log-entry-tier">Tier-${entry.tier}</span>
+            <span class="log-entry-tier">${entry.tier}</span>
             <span class="log-entry-time">${timeStr}</span>
           </div>
-          <div class="log-entry-message">${entry.message}</div>
-          ${entry.details ? `<div class="log-entry-details">${JSON.stringify(entry.details)}</div>` : ''}
+          <div class="log-entry-message">${msg}</div>
+          ${entry.predictedSavingSec ? `<div class="log-entry-details">Saving: ${Number(entry.predictedSavingSec).toFixed(1)}s</div>` : ''}
         `;
         entries.appendChild(div);
       });
@@ -1002,20 +1108,20 @@
       let yieldingCount = 0;
       let targetDetails = [];
 
-      if (this.app.sim && this.app.traffic) {
-        const ambPos = amb.mesh ? amb.mesh.position : null;
-        const ambHeading = amb.currentHeading || 0;
+      if (this.app.sim && this.app.sim.vehicles && this.app.projection) {
+        const ambPos = amb.position;
+        const ambHeading = amb.headingRad || 0;
         if (ambPos) {
-          // Check civilian vehicles in cone
-          this.app.traffic.vehicles.forEach((inst, id) => {
-            if (!inst.mesh) return;
-            const vehPos = inst.mesh.position;
+          for (const veh of this.app.sim.vehicles.values()) {
+            if (!veh || (veh.cls && veh.cls.isEmergency) || !veh.edge) continue;
+            const sample = veh.edge.sampleAt(veh.s);
+            const vehPos = this.app.projection.latLonAltToCartesian(sample.lat, sample.lon, sample.alt || 920);
             const dx = vehPos.x - ambPos.x;
             const dz = vehPos.z - ambPos.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
+            const dist = Math.hypot(dx, dz);
 
             if (dist <= maxRange) {
-              const angleToVeh = Math.atan2(dx, dz);
+              const angleToVeh = Math.atan2(dx, -dz);
               let angleDiff = angleToVeh - ambHeading;
               while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
               while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
@@ -1023,18 +1129,18 @@
 
               if (Math.abs(angleDiff) <= halfFov) {
                 targetsInCone++;
-                const isYielding = inst.yielding || false;
+                const isYielding = veh.v < 3.0;
                 if (isYielding) yieldingCount++;
                 targetDetails.push({
-                  id: id,
-                  dist: dist,
+                  id: veh.id,
+                  dist,
                   angle: angleDiff,
                   yielding: isYielding,
-                  speed: inst.speed || 0
+                  speed: veh.v || 0
                 });
               }
             }
-          });
+          }
         }
       }
 
@@ -1155,68 +1261,79 @@
     updateComparisonPanel() {
       if (!this.app || !this.app.sim) return;
 
-      // Check if experiment has been run
       const hasExperimentRun = this.lastExperimentResult !== undefined;
-      
-      // Show/hide placeholder
+
       if (this.elements.comparisonPlaceholder) {
         this.elements.comparisonPlaceholder.style.display = hasExperimentRun ? 'none' : 'block';
       }
+      if (this.elements.comparisonResults) {
+        this.elements.comparisonResults.style.display = hasExperimentRun ? 'grid' : 'none';
+      }
+      if (this.elements.comparisonDeltas) {
+        this.elements.comparisonDeltas.style.display = hasExperimentRun ? 'block' : 'none';
+      }
 
       if (!hasExperimentRun) {
-        // Show placeholder - don't display fake metrics
-        if (this.elements.cmpATime) this.elements.cmpATime.textContent = '--:--';
-        if (this.elements.cmpARed) this.elements.cmpARed.textContent = '--';
-        if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = '--';
-        if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = '-- km/h';
-        if (this.elements.cmpDTime) this.elements.cmpDTime.textContent = '--:--';
-        if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = '--';
-        if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = '--';
-        if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = '-- km/h';
-        if (this.elements.cmpDeltaTime) this.elements.cmpDeltaTime.textContent = '--:--';
-        if (this.elements.cmpDeltaStops) this.elements.cmpDeltaStops.textContent = '--';
-        if (this.elements.cmpDeltaSpeed) this.elements.cmpDeltaSpeed.textContent = '-- km/h';
         return;
       }
 
-      // Experiment has run - display real results from lastExperimentResult
       const result = this.lastExperimentResult;
       if (!result || !result.modes) return;
 
       const modeA = result.modes.A;
       const modeD = result.modes.D;
 
+      const computeAvgSpeedKmh = (m) => {
+        const sec = m.arrived && m.travelTimeSec > 0 ? m.travelTimeSec : m.finalTimeSec;
+        if (!sec || sec <= 0 || !m.distanceTravelledM) return 0;
+        return (m.distanceTravelledM / 1000) / (sec / 3600);
+      };
+
       if (modeA) {
-        if (this.elements.cmpATime) this.elements.cmpATime.textContent = this.formatTime(modeA.ambulanceTravelTimeSec || 0);
-        if (this.elements.cmpARed) this.elements.cmpARed.textContent = `${(modeA.ambulanceRedLightWaitSec || 0).toFixed(1)}s`;
-        if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = modeA.totalRedStops || 0;
-        if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = `${(modeA.avgSpeedKmh || 0).toFixed(1)} km/h`;
+        if (this.elements.cmpAOutcome) this.elements.cmpAOutcome.textContent = modeA.outcome;
+        if (this.elements.cmpATime) {
+          this.elements.cmpATime.textContent = modeA.arrived
+            ? `${this.formatTime(modeA.travelTimeSec)} (${modeA.travelTimeSec.toFixed(1)}s)`
+            : `DNF (${modeA.finalTimeSec.toFixed(0)}s)`;
+        }
+        if (this.elements.cmpARed) this.elements.cmpARed.textContent = `${(modeA.redLightWaitSec ?? 0).toFixed(1)}s`;
+        if (this.elements.cmpAStops) this.elements.cmpAStops.textContent = `${(modeA.stoppedTimeSec ?? 0).toFixed(1)}s / ${modeA.rerouteCount || 0} reroutes`;
+        if (this.elements.cmpASpeed) this.elements.cmpASpeed.textContent = `${computeAvgSpeedKmh(modeA).toFixed(1)} km/h`;
       }
 
       if (modeD) {
-        if (this.elements.cmpDTime) this.elements.cmpDTime.textContent = this.formatTime(modeD.ambulanceTravelTimeSec || 0);
-        if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = `${(modeD.ambulanceRedLightWaitSec || 0).toFixed(1)}s`;
-        if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = modeD.totalRedStops || 0;
-        if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = `${(modeD.avgSpeedKmh || 0).toFixed(1)} km/h`;
+        if (this.elements.cmpDOutcome) this.elements.cmpDOutcome.textContent = modeD.outcome;
+        if (this.elements.cmpDTime) {
+          this.elements.cmpDTime.textContent = modeD.arrived
+            ? `${this.formatTime(modeD.travelTimeSec)} (${modeD.travelTimeSec.toFixed(1)}s)`
+            : `DNF (${modeD.finalTimeSec.toFixed(0)}s)`;
+        }
+        if (this.elements.cmpDRed) this.elements.cmpDRed.textContent = `${(modeD.redLightWaitSec ?? 0).toFixed(1)}s`;
+        if (this.elements.cmpDStops) this.elements.cmpDStops.textContent = `${(modeD.stoppedTimeSec ?? 0).toFixed(1)}s / ${modeD.rerouteCount || 0} reroutes`;
+        if (this.elements.cmpDSpeed) this.elements.cmpDSpeed.textContent = `${computeAvgSpeedKmh(modeD).toFixed(1)} km/h`;
       }
 
-      // Deltas
       if (modeA && modeD) {
-        const timeSaved = (modeA.ambulanceTravelTimeSec || 0) - (modeD.ambulanceTravelTimeSec || 0);
-        const stopsAvoided = (modeA.totalRedStops || 0) - (modeD.totalRedStops || 0);
-        const speedGain = (modeD.avgSpeedKmh || 0) - (modeA.avgSpeedKmh || 0);
+        const speedA = computeAvgSpeedKmh(modeA);
+        const speedD = computeAvgSpeedKmh(modeD);
+        const speedGain = speedD - speedA;
+        const stoppedSaved = (modeA.stoppedTimeSec ?? 0) - (modeD.stoppedTimeSec ?? 0);
 
         if (this.elements.cmpDeltaTime) {
-          this.elements.cmpDeltaTime.textContent = this.formatTime(timeSaved);
-          this.elements.cmpDeltaTime.className = timeSaved > 0 ? 'metric positive' : (timeSaved < 0 ? 'metric negative' : 'metric neutral');
+          if (modeA.arrived && modeD.arrived) {
+            const savedSec = modeA.travelTimeSec - modeD.travelTimeSec;
+            this.elements.cmpDeltaTime.textContent = `${savedSec >= 0 ? '+' : ''}${savedSec.toFixed(1)}s (${savedSec >= 0 ? 'faster' : 'slower'})`;
+          } else if (!modeA.arrived && modeD.arrived) {
+            this.elements.cmpDeltaTime.textContent = `A=DNF → D=${modeD.travelTimeSec.toFixed(1)}s`;
+          } else {
+            this.elements.cmpDeltaTime.textContent = `${modeA.outcome} vs ${modeD.outcome}`;
+          }
         }
         if (this.elements.cmpDeltaStops) {
-          this.elements.cmpDeltaStops.textContent = stopsAvoided;
-          this.elements.cmpDeltaStops.className = stopsAvoided > 0 ? 'metric positive' : (stopsAvoided < 0 ? 'metric negative' : 'metric neutral');
+          this.elements.cmpDeltaStops.textContent = `${stoppedSaved >= 0 ? '-' : '+'}${Math.abs(stoppedSaved).toFixed(1)}s wait | ${modeD.signalInterventions || 0} overrides`;
         }
         if (this.elements.cmpDeltaSpeed) {
           this.elements.cmpDeltaSpeed.textContent = `${speedGain >= 0 ? '+' : ''}${speedGain.toFixed(1)} km/h`;
-          this.elements.cmpDeltaSpeed.className = speedGain > 0 ? 'metric positive' : (speedGain < 0 ? 'metric negative' : 'metric neutral');
         }
       }
     }
@@ -1229,38 +1346,69 @@
       this.elements.btnRunComparison.textContent = 'Running...';
 
       try {
-        // Get experiment module
-        const ExperimentHarness = window.ExperimentHarness;
-        if (!ExperimentHarness) {
-          // Dynamically load if not present
-          const script = document.createElement('script');
-          script.src = 'js/experiment.js';
-          document.head.appendChild(script);
-          await new Promise(r => setTimeout(r, 500));
-        }
+        if (window.ExperimentHarness && typeof window.ExperimentHarness.runComparison === 'function') {
+          const scenarioKey = this.elements.comparisonScenarioSelect
+            ? this.elements.comparisonScenarioSelect.value
+            : 'severe_congestion_avenue_road';
 
-        if (window.ExperimentHarness) {
-          const harness = new window.ExperimentHarness();
-          const scenario = {
-            originNode: 'Koramangala',
-            destinationHospital: 'Manipal Hospital',
-            durationSec: parseInt(this.elements.simDuration.value) || 600,
-            seed: parseInt(this.elements.seedSlider.value) || 42,
-            demandProfile: this.elements.demandProfile.value || 'peak'
+          const seed = parseInt(this.elements.seedSlider?.value, 10) || 42;
+          const demandProfile = this.elements.demandProfile?.value || 'peak';
+          const durationSec = Math.max(900, parseInt(this.elements.simDuration?.value, 10) || 900);
+
+          const SCENARIOS = {
+            severe_congestion_avenue_road: {
+              name: 'severe_congestion_avenue_road',
+              origin: 'node_majestic',
+              destinationHospital: 'hosp_victoria_01',
+              durationSec,
+              seed,
+              demandProfile,
+              congestionEvents: [{ edgeId: 'edge_avenue_01_fwd', atSec: 30, speedFactor: 0.1 }]
+            },
+            blocked_primary_corridor: {
+              name: 'blocked_primary_corridor',
+              origin: 'node_majestic',
+              destinationHospital: 'hosp_victoria_01',
+              durationSec,
+              seed,
+              demandProfile,
+              congestionEvents: [{ edgeId: 'edge_avenue_01_fwd', atSec: 30, blocked: true }]
+            },
+            peak_signalised_corridor: {
+              name: 'peak_signalised_corridor',
+              origin: 'node_majestic',
+              destinationHospital: 'hosp_victoria_01',
+              durationSec,
+              seed,
+              demandProfile,
+              congestionEvents: []
+            },
+            mild_congestion_below_threshold: {
+              name: 'mild_congestion_below_threshold',
+              origin: 'node_majestic',
+              destinationHospital: 'hosp_victoria_01',
+              durationSec,
+              seed,
+              demandProfile,
+              congestionEvents: [{ edgeId: 'edge_avenue_01_fwd', atSec: 30, speedFactor: 0.5 }]
+            }
           };
 
-          const result = harness.runComparison(scenario);
-          
-          // Store for export and display
-          this.lastExperimentResult = result;
+          const scenario = SCENARIOS[scenarioKey] || SCENARIOS.severe_congestion_avenue_road;
+          const overrides = {
+            CONFIG: (typeof CONFIG !== 'undefined') ? CONFIG : window.CONFIG,
+            NETWORK: (typeof NETWORK_DATA !== 'undefined') ? NETWORK_DATA : window.NETWORK_DATA,
+            SIGNALS: (typeof SIGNALS_DATA !== 'undefined') ? SIGNALS_DATA : window.SIGNALS_DATA
+          };
+          const result = window.ExperimentHarness.runComparison(scenario, overrides);
 
-          this.showToast('Experiment Complete — Results in Comparison Panel', 'success');
-          
+          this.lastExperimentResult = result;
+          this.showToast('Experiment Complete — Real A/B/C/D Metrics Loaded', 'success');
+
           if (this.elements.exportStatus) {
-            this.elements.exportStatus.textContent = `Experiment completed at ${new Date().toLocaleTimeString()}. Ready for export.`;
+            this.elements.exportStatus.textContent = `Experiment (${scenario.name}) completed at ${new Date().toLocaleTimeString()}.`;
           }
-          
-          // Immediately update the panel with results
+
           this.updateComparisonPanel();
         } else {
           this.showToast('Experiment module not available', 'error');

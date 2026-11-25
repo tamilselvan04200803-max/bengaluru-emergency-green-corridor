@@ -19,6 +19,16 @@
 
   <!-- Verified Central Bengaluru Geospatial Datasets -->
   <script src="preview_data.js"></script>
+
+  <!-- MapLibre GL JS 4.x — zero-API-key OpenFreeMap Liberty 3D vector tiles -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- New Stage 6 modules: MapLibre renderer, vehicle layer, camera director -->
+  <script src="js/map_renderer.js"></script>
+  <script src="js/vehicle_layer.js"></script>
+  <script src="js/camera_director.js"></script>
+
   <script src="js/network.js"></script>
   <script src="js/routing.js"></script>
   <script src="js/simulation.js"></script>
@@ -35,8 +45,8 @@
     </div>
   </div>
 
-  <!-- Full-screen WebGL Canvas -->
-  <canvas id="webgl-canvas"></canvas>
+  <!-- Full-screen MapLibre + Three.js 3D Viewport -->
+  <div id="map-container"></div>
 
   <!-- Sci-Fi HUD Header -->
   <header id="hud-header">
@@ -44,7 +54,7 @@
       <span class="hud-badge pulse" id="telemetry-badge">STANDALONE 10Hz</span>
       <div class="hud-titles">
         <h1>BENGALURU SMART EMERGENCY CORRIDOR</h1>
-        <span class="hud-sub">CENTRAL ITMS V2 TWIN — MAJESTIC TO VICTORIA & BOWRING</span>
+        <span class="hud-sub">3D DIGITAL TWIN — MAPLIBRE + THREE.JS + ITMS PREEMPTION</span>
       </div>
     </div>
 
@@ -61,10 +71,6 @@
         <span class="stat-value" id="stat-preemptions">0</span>
         <span class="stat-label">Green Waves Active</span>
       </div>
-      <div class="hud-stat">
-        <span class="stat-value highlight" id="stat-savings">-- min</span>
-        <span class="stat-label">Travel Time Saved</span>
-      </div>
     </div>
   </header>
 
@@ -72,45 +78,43 @@
   <div id="hud-legend">
     <div class="legend-item">
       <span class="legend-dot red"></span>
-      <span>ITMS Signal: Stop / Normal Cycle</span>
+      <span>ITMS Signal: Stop / Heavy Congestion</span>
     </div>
     <div class="legend-item">
       <span class="legend-dot amber"></span>
-      <span>ITMS Signal: Caution / Transition</span>
+      <span>ITMS Signal: Caution / Moderate Flow</span>
     </div>
     <div class="legend-item">
       <span class="legend-dot green"></span>
-      <span>Green Wave: Priority Corridor Override</span>
+      <span>Corridor: Free-Flow / Signal Green</span>
     </div>
     <div class="legend-item">
       <span class="legend-dot blue"></span>
-      <span>Reflective Wet Asphalt Active (Rain)</span>
+      <span>Green Wave Beam / Tier-2 Override</span>
     </div>
   </div>
 
   <!-- Bottom Command Deck -->
   <div id="command-deck">
     <div class="deck-group">
-      <span class="deck-title">CAMERA MODE</span>
-      <button class="deck-btn" id="btn-cam-chase">Chase [1]</button>
-      <button class="deck-btn" id="btn-cam-cockpit">Cockpit [2]</button>
-      <button class="deck-btn" id="btn-cam-aerial">Aerial [3]</button>
-      <button class="deck-btn active" id="btn-cam-orbit">Free Orbit [4]</button>
+      <span class="deck-title">3D MAP VIEWS</span>
+      <button class="deck-btn" id="btn-view-silk-board">Silk Board</button>
+      <button class="deck-btn" id="btn-view-majestic-victoria">Majestic → Victoria</button>
+      <button class="deck-btn active" id="btn-view-full-city">Full City 3D</button>
+      <button class="deck-btn" id="btn-view-chase-ambulance">Chase Ambulance</button>
+      <button class="deck-btn" id="btn-view-dual-ad">Dual A vs D</button>
     </div>
 
     <div class="deck-group">
-      <span class="deck-title">MISSION CONTROLS</span>
-      <button class="deck-btn" id="btn-mode-toggle">Manual Drive [M]</button>
+      <span class="deck-title">CONTROLS</span>
       <button class="deck-btn" id="btn-siren-toggle">Siren [S]</button>
-      <button class="deck-btn" id="btn-rain-toggle">Weather: Clear [R]</button>
-      <button class="deck-btn" id="btn-day-toggle">Time: Day [N]</button>
       <button class="deck-btn highlight-green" id="btn-deck-corridor-toggle">Corridor: ON [G]</button>
       <button class="deck-btn" id="btn-export-benchmark">Export JSON</button>
     </div>
   </div>
 
-  <!-- Comparative Benchmark & Impact Analytics HUD -->
-  <aside id="benchmark-hud" class="benchmark-container">
+  <!-- Single-Column Live Simulation Telemetry HUD -->
+  <aside id="benchmark-hud" class="benchmark-container single-column-hud">
     <!-- Live AI Green Corridor ON vs OFF Toggle -->
     <div class="corridor-toggle-bar">
       <button id="btn-corridor-toggle" class="corridor-toggle-btn active" title="Toggle AI Green Corridor Preemption (Key: G)">
@@ -120,123 +124,58 @@
       </button>
     </div>
 
-    <!-- Side-by-Side Comparative Cards Grid -->
-    <div class="comparison-grid">
-      <!-- Left Card: Baseline Uncoordinated Model -->
-      <div class="benchmark-card baseline-card" id="card-baseline">
-        <div class="card-header">
-          <span class="card-dot red"></span>
-          <span class="card-title">BASELINE (UNCOORDINATED)</span>
-          <span class="card-tag">LEGACY ITMS</span>
-        </div>
-        <div class="card-metric-primary">
-          <span class="metric-value red-text" id="baselineTimeDisplay">00:00</span>
-          <span class="metric-unit">Transit Duration</span>
-        </div>
-        <div class="card-details">
-          <div class="detail-row">
-            <span class="detail-label">Stochastic Halts:</span>
-            <span class="detail-value red-text" id="baseline-halts-count">0 stops</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Avg Moving Speed:</span>
-            <span class="detail-value" id="baseline-avg-speed">0.0 km/h</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Signal Delays:</span>
-            <span class="detail-value" id="baseline-signal-delays">--</span>
-          </div>
-        </div>
+    <!-- Single-Column Live Simulation Telemetry Card -->
+    <div class="benchmark-card ai-card" id="card-live-telemetry">
+      <div class="card-header">
+        <span class="card-dot blue"></span>
+        <span class="card-title">LIVE SIMULATION TELEMETRY</span>
+        <span class="card-badge badge-active" id="priorityStatusBadge">GREEN WAVE ACTIVE</span>
       </div>
-
-      <!-- Center Card: Impact Analytics & Golden Hour Survival Odds -->
-      <div class="benchmark-card summary-card" id="card-impact">
-        <div class="card-header">
-          <span class="card-title">IMPACT ANALYTICS</span>
-          <span class="card-badge badge-active" id="priorityStatusBadge">GREEN WAVE ACTIVE</span>
-        </div>
-        <div class="card-metric-hero">
-          <span class="hero-label">TRAVEL TIME SAVED</span>
-          <div class="hero-value-wrap">
-            <span class="hero-value green-text" id="minutesSavedCounter">0.0</span>
-            <span class="hero-unit">MIN</span>
+      <div id="live-telemetry-card" class="live-telemetry-card">
+        <div id="live-telemetry-content">
+          <div class="telemetry-row">
+            <span class="telemetry-label">Sim Time:</span>
+            <span class="telemetry-value" style="color:var(--accent-cyan);">0.0s</span>
           </div>
-          <div class="hero-sub" id="percent-saved-display">0.0% TIME SAVED</div>
-        </div>
-
-        <div class="card-details-center">
-          <div class="detail-badge" id="haltReductionBadge">
-            <span class="badge-num" id="halts-avoided-count">0</span>
-            <span class="badge-text">Halts Avoided</span>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Ambulance Speed:</span>
+            <span class="telemetry-value" style="color:var(--accent-green);">0.0 km/h</span>
           </div>
-          <div class="detail-badge" id="speed-boost-badge">
-            <span class="badge-num" id="speed-boost-display">+0%</span>
-            <span class="badge-text">Speed Boost</span>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Distance Traveled:</span>
+            <span class="telemetry-value">0.00 km</span>
           </div>
-          <div class="detail-badge" id="reroute-badge">
-            <span class="badge-num" id="reroute-count">0</span>
-            <span class="badge-text">Reroutes</span>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Active Signals:</span>
+            <span class="telemetry-value">0</span>
           </div>
-          <div class="detail-badge" id="signal-intervention-badge">
-            <span class="badge-num" id="signal-intervention-count">0</span>
-            <span class="badge-text">Signal Overrides</span>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Civilian Vehicles:</span>
+            <span class="telemetry-value">0</span>
           </div>
-        </div>
-      </div>
-
-      <!-- Right Card: Live Simulation Telemetry (replaces AI Green Corridor Model) -->
-      <div class="benchmark-card ai-card" id="card-live-telemetry">
-        <div class="card-header">
-          <span class="card-dot blue"></span>
-          <span class="card-title">LIVE SIMULATION TELEMETRY</span>
-          <span class="card-tag" style="background:rgba(56,189,248,0.2); color:#38bdf8; border-color:rgba(56,189,248,0.3);">REAL-TIME</span>
-        </div>
-        <div id="live-telemetry-card" style="display:flex; flex-direction:column; gap:6px;">
-          <div id="live-telemetry-content">
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Sim Time:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-cyan);">0.0s</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Ambulance Speed:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-green);">0.0 km/h</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Distance Traveled:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--text-main);">0.00 km</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Active Signals:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--text-main);">0</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Civilian Vehicles:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--text-main);">0</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Congested Edges:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-red);">0</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Route Clear Rate:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-green);">0.0%</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Signal Overrides:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-amber);">0</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Red Light Wait:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-red);">0.0s</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid rgba(56,189,248,0.1);">
-              <span class="telemetry-label" style="color:var(--text-muted);">Tier-1 Reroutes:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-cyan);">0</span>
-            </div>
-            <div class="telemetry-row" style="display:flex; justify-content:space-between; padding:4px 0; font-size:11px;">
-              <span class="telemetry-label" style="color:var(--text-muted);">Tier-2 Priority:</span>
-              <span class="telemetry-value" style="font-family:var(--font-mono); font-weight:600; color:var(--accent-amber);">0</span>
-            </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Congested Edges:</span>
+            <span class="telemetry-value" style="color:var(--accent-red);">0</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Route Clear Rate:</span>
+            <span class="telemetry-value" style="color:var(--accent-green);">0.0%</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Signal Overrides:</span>
+            <span class="telemetry-value" style="color:var(--accent-amber);">0</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Red Light Wait:</span>
+            <span class="telemetry-value" style="color:var(--accent-red);">0.0s</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Tier-1 Reroutes:</span>
+            <span class="telemetry-value" style="color:var(--accent-cyan);">0</span>
+          </div>
+          <div class="telemetry-row">
+            <span class="telemetry-label">Tier-2 Priority:</span>
+            <span class="telemetry-value" style="color:var(--accent-amber);">0</span>
           </div>
         </div>
       </div>
@@ -362,33 +301,44 @@
       <button class="panel-close" data-target="comparison-panel">×</button>
     </div>
     <div class="panel-content">
+      <div class="control-row">
+        <label for="comparison-scenario-select">Scenario (Majestic → Victoria):</label>
+        <select id="comparison-scenario-select">
+          <option value="severe_congestion_avenue_road">Severe Congestion on Avenue Rd (0.1× speed)</option>
+          <option value="blocked_primary_corridor">Blocked Primary Corridor (Avenue Rd closed)</option>
+          <option value="peak_signalised_corridor">Peak Signalised Corridor (no blockage)</option>
+          <option value="mild_congestion_below_threshold">Mild Congestion (0.5× below reroute threshold)</option>
+        </select>
+      </div>
       <!-- Placeholder shown until experiment runs -->
-      <div id="comparison-placeholder" style="text-align:center; padding:40px 20px; color:var(--text-muted); background:rgba(15,23,42,0.4); border-radius:8px; border:1px dashed var(--panel-border);">
-        <div style="font-size:24px; margin-bottom:12px;">⚖️</div>
-        <div style="font-size:14px; font-weight:600; margin-bottom:8px;">No Experiment Data Yet</div>
+      <div id="comparison-placeholder" style="text-align:center; padding:24px 16px; color:var(--text-muted); background:rgba(15,23,42,0.4); border-radius:8px; border:1px dashed var(--panel-border);">
+        <div style="font-size:22px; margin-bottom:8px;">⚖️</div>
+        <div style="font-size:13px; font-weight:600; margin-bottom:6px;">No Experiment Data Yet</div>
         <div style="font-size:12px; line-height:1.5; max-width:360px;">Click <strong>"Run A/B/C/D Experiment"</strong> to compute real metrics from the simulation engine. Results will display actual measured numbers including 0.0s or DNF honestly.</div>
       </div>
       <div class="comparison-grid" style="display:none;" id="comparison-results">
         <div class="comparison-mode" id="mode-a">
           <h4>Mode A: Baseline</h4>
+          <div class="metric"><span>Outcome:</span> <span id="cmp-a-outcome">--</span></div>
           <div class="metric"><span>Travel Time:</span> <span id="cmp-a-time">--:--</span></div>
           <div class="metric"><span>Red Light Wait:</span> <span id="cmp-a-red">--</span></div>
-          <div class="metric"><span>Stops:</span> <span id="cmp-a-stops">--</span></div>
+          <div class="metric"><span>Stopped / Reroutes:</span> <span id="cmp-a-stops">--</span></div>
           <div class="metric"><span>Avg Speed:</span> <span id="cmp-a-speed">-- km/h</span></div>
         </div>
         <div class="comparison-divider">vs</div>
         <div class="comparison-mode" id="mode-d">
           <h4>Mode D: Combined</h4>
+          <div class="metric"><span>Outcome:</span> <span id="cmp-d-outcome">--</span></div>
           <div class="metric"><span>Travel Time:</span> <span id="cmp-d-time">--:--</span></div>
           <div class="metric"><span>Red Light Wait:</span> <span id="cmp-d-red">--</span></div>
-          <div class="metric"><span>Stops:</span> <span id="cmp-d-stops">--</span></div>
+          <div class="metric"><span>Stopped / Reroutes:</span> <span id="cmp-d-stops">--</span></div>
           <div class="metric"><span>Avg Speed:</span> <span id="cmp-d-speed">-- km/h</span></div>
         </div>
       </div>
       <div class="comparison-deltas" style="display:none;" id="comparison-deltas">
-        <h4>Deltas (D - A)</h4>
+        <h4>Deltas (D vs A)</h4>
         <div class="metric positive"><span>Time Saved:</span> <span id="cmp-delta-time">--:--</span></div>
-        <div class="metric positive"><span>Stops Avoided:</span> <span id="cmp-delta-stops">--</span></div>
+        <div class="metric positive"><span>Stopped Δ / Signal Overrides:</span> <span id="cmp-delta-stops">--</span></div>
         <div class="metric positive"><span>Speed Gain:</span> <span id="cmp-delta-speed">-- km/h</span></div>
       </div>
       <button id="btn-run-comparison" class="control-btn primary">Run A/B/C/D Experiment</button>
