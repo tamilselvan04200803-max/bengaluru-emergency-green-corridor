@@ -61,6 +61,12 @@
       this._lastBeamKey = '';
       this._pulsePhase = 0;
       this._fallbackAttempted = false;
+
+      // Stage 7: Targeting beam & priority halo state
+      this._targetSignalId = null;
+      this._targetSignalDistance = 0;
+      this._targetSignalETA = 0;
+      this._priorityHaloPhase = 0;
     }
 
     configure(options = {}) {
@@ -157,6 +163,8 @@
       const netData = await this._resolveNetworkData();
       this._addNetworkCorridors(netData);
       this._addGreenCorridorBeam();
+      this._addTargetingBeam();
+      this._addPriorityHalo();
       this._addSignalBeacons();
       this._addHospitalBadges(netData);
       this._addLandmarkBadges(netData);
@@ -416,6 +424,71 @@
             'line-color': '#67e8f9',
             'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 8],
             'line-opacity': 0.95
+          }
+        }, beforeLayer);
+      }
+    }
+
+    /**
+     * Stage 7: Add targeting beam - dashed line from ambulance to next signal within 350m.
+     * Updates dynamically as ambulance approaches signals.
+     */
+    _addTargetingBeam() {
+      if (!this.map) return;
+      if (!this.map.getSource('targeting-beam')) {
+        this.map.addSource('targeting-beam', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+      }
+      const beforeLayer = this.map.getLayer('building-3d') ? 'building-3d' : undefined;
+
+      if (!this.map.getLayer('targeting-beam-line')) {
+        this.map.addLayer({
+          id: 'targeting-beam-line',
+          type: 'line',
+          source: 'targeting-beam',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#22d3ee',
+            'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 6],
+            'line-dasharray': [2.5, 2.0],
+            'line-opacity': 0.95
+          }
+        }, beforeLayer);
+      }
+    }
+
+    /**
+     * Stage 7: Add pulsing priority halo ring on targeted signal when Tier-2 preemption activates (≤250m).
+     * A growing/shrinking ring around the signal beacon.
+     */
+    _addPriorityHalo() {
+      if (!this.map) return;
+      if (!this.map.getSource('priority-halo')) {
+        this.map.addSource('priority-halo', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+      }
+      const beforeLayer = this.map.getLayer('building-3d') ? 'building-3d' : undefined;
+
+      if (!this.map.getLayer('priority-halo-ring')) {
+        this.map.addLayer({
+          id: 'priority-halo-ring',
+          type: 'circle',
+          source: 'priority-halo',
+          paint: {
+            'circle-radius': [
+              'interpolate', ['linear'], ['zoom'],
+              11, ['*', ['get', 'pulseScale'], 12],
+              16, ['*', ['get', 'pulseScale'], 28]
+            ],
+            'circle-color': '#22d3ee',
+            'circle-opacity': ['*', 0.55, ['get', 'pulseOpacity']],
+            'circle-stroke-width': 3,
+            'circle-stroke-color': '#67e8f9',
+            'circle-stroke-opacity': ['get', 'pulseOpacity']
           }
         }, beforeLayer);
       }
@@ -772,11 +845,13 @@
 
     /**
      * Synchronize signal beacons (2 Hz), green-corridor beam (on route change),
-     * and road congestion colors (0.5 Hz) to avoid starving MapLibre tile workers.
+     * targeting beam (10 Hz), priority halo (10 Hz), and road congestion colors (0.5 Hz)
+     * to avoid starving MapLibre tile workers.
      */
     syncWithThree(delta = 0.016) {
       if (this._headless || !this.map || !this._layersReady) return;
       this._pulsePhase += delta;
+      this._priorityHaloPhase += delta * 2.0; // 2 Hz pulse for priority halo
 
       const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
       if (now - this._lastSyncTime < 500) return;
@@ -818,7 +893,13 @@
           }
         }
 
-        // 3. Update road congestion colors every 2.5s
+        // 3. Stage 7: Update targeting beam - dashed line from ambulance to next signal within 350m
+        this._updateTargetingBeam();
+
+        // 4. Stage 7: Update priority halo on targeted signal when Tier-2 preemption activates (≤250m)
+        this._updatePriorityHalo();
+
+        // 5. Update road congestion colors every 2.5s
         if (now - this._lastCorridorSyncTime >= 2500) {
           this._lastCorridorSyncTime = now;
           const corrSource = this.map.getSource('network-corridors');
@@ -831,6 +912,169 @@
         }
       } catch (e) {
         console.warn('MapRenderer: syncWithThree error', e);
+      }
+    }
+
+    /**
+     * Stage 7: Update targeting beam - dashed line from ambulance to next signal within 350m.
+     * Called every frame to track the next signal on the ambulance's route.
+     */
+    _updateTargetingBeam() {
+      const beamSource = this.map.getSource('targeting-beam');
+      if (!beamSource || !this.sim || !this.sim.ambulances || !this.routingController) return;
+
+      const amb = this.sim.ambulances.get('amb_1');
+      if (!amb) return;
+
+      // Get ambulance position and route
+      const ambVeh = this.sim.vehicles.get('amb_1');
+      if (!ambVeh || !ambVeh.edge) return;
+
+      const routeEdges = this.routingController.currentRouteEdges || [];
+      if (routeEdges.length === 0) return;
+
+      // Find current edge index in route
+      const currentEdgeId = ambVeh.edge.id;
+      let currentIndex = routeEdges.indexOf(currentEdgeId);
+      if (currentIndex === -1) currentIndex = 0;
+
+      // Look ahead along route for next signalized junction (within 3500m)
+      const TARGET_HORIZON_M = 3500;
+      let accumulatedDistance = 0;
+      let targetSignal = null;
+      let targetDistance = 0;
+      let targetETA = 0;
+      const speedMps = Math.max(5, ambVeh.v || 14);
+
+      // First check if current edge has signal at its end
+      const currentEdge = this.sim.network.getEdge(currentEdgeId);
+      if (currentEdge) {
+        const remainingOnEdge = Math.max(0, currentEdge.length - ambVeh.s);
+        accumulatedDistance = remainingOnEdge;
+        const toNodeId = currentEdge.toNodeId || currentEdge.to_node;
+        const toNode = toNodeId ? this.sim.network.getNode(toNodeId) : null;
+        const sig = (this.signalManager && toNodeId)
+          ? (this.signalManager.getSignalByNode(toNodeId) || (toNode && toNode.signals && toNode.signals[0] ? this.signalManager.getSignal(toNode.signals[0]) : null))
+          : null;
+        if (sig && accumulatedDistance <= TARGET_HORIZON_M) {
+          targetSignal = sig.id;
+          targetDistance = accumulatedDistance;
+          targetETA = targetDistance / speedMps;
+        }
+      }
+
+      // If no signal on current edge, look ahead on subsequent edges
+      if (!targetSignal) {
+        for (let i = currentIndex + 1; i < routeEdges.length; i += 1) {
+          const edgeId = routeEdges[i];
+          const edge = this.sim.network.getEdge(edgeId);
+          if (!edge) continue;
+
+          const edgeLength = edge.length || 0;
+          accumulatedDistance += edgeLength;
+
+          if (accumulatedDistance > TARGET_HORIZON_M) break;
+
+          const toNodeId = edge.toNodeId || edge.to_node;
+          const toNode = toNodeId ? this.sim.network.getNode(toNodeId) : null;
+          const sig = (this.signalManager && toNodeId)
+            ? (this.signalManager.getSignalByNode(toNodeId) || (toNode && toNode.signals && toNode.signals[0] ? this.signalManager.getSignal(toNode.signals[0]) : null))
+            : null;
+          if (sig) {
+            targetSignal = sig.id;
+            targetDistance = accumulatedDistance;
+            targetETA = targetDistance / speedMps;
+            break;
+          }
+        }
+      }
+
+      this._targetSignalId = targetSignal;
+      this._targetSignalDistance = targetDistance;
+      this._targetSignalETA = targetETA;
+
+      // Build targeting beam feature along route polyline from ambulance to target signal
+      if (targetSignal && this.projection) {
+        const ambSample = ambVeh.edge.sampleAt(ambVeh.s);
+        const coords = [[ambSample.lon, ambSample.lat]];
+
+        // Trace remaining route edges up to targetSignal
+        for (let i = currentIndex; i < routeEdges.length; i += 1) {
+          const edge = this.sim.network.getEdge(routeEdges[i]);
+          if (!edge || !Array.isArray(edge.polyline)) continue;
+          for (let p = 0; p < edge.polyline.length; p += 1) {
+            if (i === currentIndex && edge.cumulative && edge.cumulative[p] <= ambVeh.s) continue;
+            coords.push([edge.polyline[p][0], edge.polyline[p][1]]);
+          }
+          const toNodeId = edge.toNodeId || edge.to_node;
+          const toNode = toNodeId ? this.sim.network.getNode(toNodeId) : null;
+          const sig = (this.signalManager && toNodeId)
+            ? (this.signalManager.getSignalByNode(toNodeId) || (toNode && toNode.signals && toNode.signals[0] ? this.signalManager.getSignal(toNode.signals[0]) : null))
+            : null;
+          if (sig && sig.id === targetSignal) break;
+        }
+
+        const signal = this.signalManager.getSignal(targetSignal);
+        if (signal && signal.worldPos) {
+          const sigGeo = this.projection.cartesianToLatLonAlt(signal.worldPos.x, signal.worldPos.y || 0, signal.worldPos.z);
+          coords.push([sigGeo.lon, sigGeo.lat]);
+        }
+
+        if (coords.length >= 2) {
+          const beamFeature = {
+            type: 'Feature',
+            properties: { signalId: targetSignal, distance: targetDistance, eta: targetETA },
+            geometry: {
+              type: 'LineString',
+              coordinates: coords
+            }
+          };
+          beamSource.setData({ type: 'FeatureCollection', features: [beamFeature] });
+        } else {
+          beamSource.setData({ type: 'FeatureCollection', features: [] });
+        }
+      } else {
+        beamSource.setData({ type: 'FeatureCollection', features: [] });
+      }
+    }
+
+    /**
+     * Stage 7: Update priority halo on targeted signal when Tier-2 preemption activates (≤250m).
+     * Pulsing ring around the signal beacon.
+     */
+    _updatePriorityHalo() {
+      const haloSource = this.map.getSource('priority-halo');
+      if (!haloSource) return;
+      if (!this._targetSignalId || !this.signalManager) {
+        haloSource.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      // Check if target signal is within 250m and has Tier-2 preemption active
+      const signal = this.signalManager.getSignal(this._targetSignalId);
+      const isPreempted = signal && (signal.isPreempted || signal.currentPhase === 'PREEMPT_GREEN');
+      const withinRange = this._targetSignalDistance <= 250 && this._targetSignalDistance > 0;
+
+      if (isPreempted && withinRange) {
+        // Calculate pulse animation (0.5 to 1.5 scale, opacity 0.3 to 0.8)
+        const pulse = Math.sin(this._priorityHaloPhase * Math.PI * 2);
+        const pulseScale = 0.5 + (pulse + 1) * 0.5; // 0.5 to 1.5
+        const pulseOpacity = 0.3 + (pulse + 1) * 0.25; // 0.3 to 0.8
+
+        if (this.projection && signal && signal.worldPos) {
+          const sigGeo = this.projection.cartesianToLatLonAlt(signal.worldPos.x, signal.worldPos.y || 0, signal.worldPos.z);
+          const haloFeature = {
+            type: 'Feature',
+            properties: { pulseScale, pulseOpacity },
+            geometry: {
+              type: 'Point',
+              coordinates: [sigGeo.lon, sigGeo.lat]
+            }
+          };
+          haloSource.setData({ type: 'FeatureCollection', features: [haloFeature] });
+        }
+      } else {
+        haloSource.setData({ type: 'FeatureCollection', features: [] });
       }
     }
 

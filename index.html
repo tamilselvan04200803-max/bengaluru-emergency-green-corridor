@@ -20,6 +20,165 @@
   <!-- Verified Central Bengaluru Geospatial Datasets -->
   <script src="preview_data.js"></script>
 
+  <!-- Stage 7: AI Priority & Clearance Banner Styles -->
+  <style>
+    .ai-priority-banner {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 18px;
+      max-width: calc(100vw - 440px);
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(15, 23, 42, 0.98));
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 9999px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.25);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      pointer-events: auto;
+      font-family: var(--font-sans);
+    }
+
+    .ai-priority-banner.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(-100%);
+      transition: all 0.3s ease-out;
+    }
+
+    .ai-priority-banner.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+      transition: all 0.3s ease-out;
+    }
+
+    .banner-pulse-ring {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981, 0 0 16px rgba(16, 185, 129, 0.6);
+      animation: bannerPulse 1.5s infinite ease-in-out;
+      flex-shrink: 0;
+    }
+
+    @keyframes bannerPulse {
+      0%, 100% {
+        box-shadow: 0 0 6px #10b981, 0 0 12px rgba(16, 185, 129, 0.5);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 14px #10b981, 0 0 28px rgba(16, 185, 129, 0.9);
+        transform: scale(1.2);
+      }
+    }
+
+    .banner-text-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: center;
+    }
+
+    .banner-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #6ee7b7;
+      text-transform: uppercase;
+    }
+
+    .banner-subtitle {
+      font-size: 10px;
+      font-weight: 600;
+      color: #d1fae5;
+      font-family: var(--font-mono);
+    }
+
+    .banner-metrics {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-left: 12px;
+      border-left: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .banner-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .banner-metric-label {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .banner-metric-value {
+      font-size: 13px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: #10b981;
+    }
+
+    .banner-metric-value.warning {
+      color: #fbbf24;
+    }
+
+    .banner-metric-value.danger {
+      color: #ef4444;
+    }
+
+    .spawn-traffic-btn {
+      position: fixed;
+      top: 136px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 150;
+      padding: 8px 18px;
+      background: linear-gradient(135deg, rgba(30, 58, 95, 0.95), rgba(15, 23, 42, 0.98));
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 8px;
+      color: #38bdf8;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 12px rgba(56, 189, 248, 0.2);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.2s ease;
+    }
+
+    .spawn-traffic-btn:hover {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(15, 23, 42, 0.98));
+      border-color: rgba(56, 189, 248, 0.7);
+      box-shadow: 0 6px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.4);
+      transform: translateX(-50%) scale(1.02);
+    }
+
+    .spawn-traffic-btn:active {
+      transform: translateX(-50%) scale(0.98);
+    }
+
+    .spawn-traffic-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(-20px);
+      transition: all 0.3s ease-out;
+    }
+  </style>
+
   <!-- MapLibre GL JS 4.x — zero-API-key OpenFreeMap Liberty 3D vector tiles -->
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -112,6 +271,38 @@
       <button class="deck-btn" id="btn-export-benchmark">Export JSON</button>
     </div>
   </div>
+
+  <!-- Stage 7: AI Priority & Clearance Banner (Top-Center) -->
+  <div id="ai-priority-banner" class="ai-priority-banner hidden">
+    <div class="banner-pulse-ring" aria-hidden="true"></div>
+    <div class="banner-text-group">
+      <span class="banner-title">AI GREEN CORRIDOR ACTIVE</span>
+      <span class="banner-subtitle" id="banner-subtitle">Tier-2 Preemption Engaged — Signal Clearance In Progress</span>
+    </div>
+    <div class="banner-metrics">
+      <div class="banner-metric">
+        <span class="banner-metric-label">Next Signal</span>
+        <span class="banner-metric-value" id="banner-next-signal">-- m</span>
+      </div>
+      <div class="banner-metric">
+        <span class="banner-metric-label">ETA</span>
+        <span class="banner-metric-value" id="banner-eta">-- s</span>
+      </div>
+      <div class="banner-metric">
+        <span class="banner-metric-label">Queue Length</span>
+        <span class="banner-metric-value" id="banner-queue-length">0 veh</span>
+      </div>
+      <div class="banner-metric">
+        <span class="banner-metric-label">Clear Rate</span>
+        <span class="banner-metric-value" id="banner-clear-rate">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage 7: Spawn Traffic Ahead Button -->
+  <button id="spawn-traffic-btn" class="spawn-traffic-btn hidden" title="Spawn civilian traffic queues ahead on ambulance route">
+    🚗 Spawn Traffic Ahead
+  </button>
 
   <!-- Single-Column Live Simulation Telemetry HUD -->
   <aside id="benchmark-hud" class="benchmark-container single-column-hud">

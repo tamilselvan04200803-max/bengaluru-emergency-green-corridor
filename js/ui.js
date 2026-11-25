@@ -94,6 +94,17 @@
       this.elements.btnExportBenchmark = document.getElementById('btn-export-benchmark');
       this.elements.liveTelemetryCard = document.getElementById('live-telemetry-card');
       this.elements.liveTelemetryContent = document.getElementById('live-telemetry-content');
+
+      // Stage 7: AI Priority & Clearance Banner elements
+      this.elements.aiPriorityBanner = document.getElementById('ai-priority-banner');
+      this.elements.bannerSubtitle = document.getElementById('banner-subtitle');
+      this.elements.bannerNextSignal = document.getElementById('banner-next-signal');
+      this.elements.bannerEta = document.getElementById('banner-eta');
+      this.elements.bannerQueueLength = document.getElementById('banner-queue-length');
+      this.elements.bannerClearRate = document.getElementById('banner-clear-rate');
+
+      // Stage 7: Spawn Traffic Ahead button
+      this.elements.spawnTrafficBtn = document.getElementById('spawn-traffic-btn');
     }
 
     /**
@@ -113,6 +124,13 @@
       if (this.elements.btnExportBenchmark) {
         this.elements.btnExportBenchmark.addEventListener('click', () => {
           this.exportBenchmarkJson();
+        });
+      }
+
+      // Stage 7: Spawn Traffic Ahead button
+      if (this.elements.spawnTrafficBtn) {
+        this.elements.spawnTrafficBtn.addEventListener('click', () => {
+          this.spawnTrafficAhead();
         });
       }
 
@@ -407,6 +425,105 @@
       URL.revokeObjectURL(url);
 
       this.showToast('Benchmark Analytics JSON Exported Successfully', 'success');
+    }
+
+    // ============================================================
+    // Stage 7: AI Priority & Clearance Banner + Spawn Traffic
+    // ============================================================
+
+    /**
+     * Updates the AI Priority & Clearance Banner with live data.
+     * Called from Application.animate() when AI corridor is active.
+     * @param {Object} data - Banner data from simulation
+     */
+    updateAIPriorityBanner(data) {
+      if (this.isNode || !this.elements.aiPriorityBanner) return;
+
+      const {
+        isActive = false,
+        nextSignalDistance = 0,
+        nextSignalEta = 0,
+        queueLength = 0,
+        clearRate = 0,
+        subtitle = 'Tier-2 Preemption Engaged — Signal Clearance In Progress'
+      } = data || {};
+
+      // Show/hide banner based on AI corridor active state
+      if (isActive) {
+        this.elements.aiPriorityBanner.classList.remove('hidden');
+        this.elements.aiPriorityBanner.classList.add('visible');
+      } else {
+        this.elements.aiPriorityBanner.classList.remove('visible');
+        this.elements.aiPriorityBanner.classList.add('hidden');
+      }
+
+      if (!isActive) return;
+
+      // Update subtitle
+      if (this.elements.bannerSubtitle) {
+        this.elements.bannerSubtitle.textContent = subtitle;
+      }
+
+      // Update next signal distance
+      if (this.elements.bannerNextSignal) {
+        this.elements.bannerNextSignal.textContent = nextSignalDistance > 0
+          ? `${Math.round(nextSignalDistance)} m`
+          : '-- m';
+      }
+
+      // Update ETA
+      if (this.elements.bannerEta) {
+        this.elements.bannerEta.textContent = nextSignalEta > 0
+          ? `${Math.round(nextSignalEta)} s`
+          : '-- s';
+      }
+
+      // Update queue length
+      if (this.elements.bannerQueueLength) {
+        this.elements.bannerQueueLength.textContent = `${queueLength} veh`;
+      }
+
+      // Update clear rate
+      if (this.elements.bannerClearRate) {
+        const ratePct = Math.round(clearRate * 100);
+        this.elements.bannerClearRate.textContent = `${ratePct}%`;
+      }
+    }
+
+    /**
+     * Shows/hides the Spawn Traffic Ahead button.
+     * @param {boolean} show - Whether to show the button
+     */
+    setSpawnTrafficButtonVisible(show) {
+      if (this.isNode || !this.elements.spawnTrafficBtn) return;
+
+      if (show) {
+        this.elements.spawnTrafficBtn.classList.remove('hidden');
+      } else {
+        this.elements.spawnTrafficBtn.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Spawns civilian traffic ahead on the ambulance's active route.
+     * Called when user clicks "Spawn Traffic Ahead" button.
+     */
+    spawnTrafficAhead() {
+      if (this.isNode || !this.app || !this.app.sim || !this.app.sim.routingController) return;
+
+      const routeEdges = this.app.sim.routingController.currentRouteEdges || [];
+      if (routeEdges.length === 0) {
+        this.showToast('No active route to spawn traffic on', 'warning');
+        return;
+      }
+
+      // Delegate to Application's corridor pre-population method
+      if (typeof this.app._prepopulateCorridorTraffic === 'function') {
+        this.app._prepopulateCorridorTraffic(routeEdges);
+        this.showToast('Civilian traffic queues spawned on corridor route', 'success');
+      } else {
+        this.showToast('Traffic spawning not available', 'error');
+      }
     }
 
     /**

@@ -99,7 +99,7 @@
       window.uiInstance = this.ui;
 
       // 6. Deterministic SimulationEngine + SmartRoutingController
-      this.initSimulation();
+      this.initSimulation({ prepopulateCorridor: true });
 
       // 7. Phase 5 interactive drawers
       if (this.ui && typeof this.ui.initPhase5Controls === 'function') {
@@ -173,8 +173,17 @@
     /**
      * Constructs the deterministic SimulationEngine + SmartRoutingController
      * and dispatches the ambulance onto a router-computed route.
+     * @param {Object} [options] - Configuration options
+     * @param {number} [options.seed=42] - PRNG seed for deterministic simulation
+     * @param {string} [options.demandProfile='peak'] - Traffic demand profile
+     * @param {number} [options.durationSec=600] - Simulation duration
+     * @param {boolean} [options.prepopulateCorridor=false] - Pre-populate ambulance's active route with civilian traffic queues (browser-only feature)
      */
-    initSimulation(seed = 42, demandProfile = 'peak', durationSec = 600) {
+    initSimulation(options = {}) {
+      const seed = options.seed ?? 42;
+      const demandProfile = options.demandProfile ?? 'peak';
+      const durationSec = options.durationSec ?? 600;
+      const prepopulateCorridor = options.prepopulateCorridor ?? false;
       const networkNs = (typeof SimulationNetwork !== 'undefined') ? SimulationNetwork : null;
       const simNs = (typeof SimulationEngine !== 'undefined') ? SimulationEngine : null;
       const SimulationNetworkCtor = (networkNs && networkNs.SimulationNetwork) ? networkNs.SimulationNetwork : networkNs;
@@ -241,6 +250,11 @@
               }
               console.log(`[Application] Ambulance dispatched: ${route.path.length} edges, `
                 + `${route.distance.toFixed(0)} m, ETA ${route.totalTime.toFixed(1)} s`);
+
+              // Stage 7: Pre-populate corridor with civilian traffic queues on ambulance's active route
+              if (prepopulateCorridor && this.sim) {
+                this._prepopulateCorridorTraffic(route.path);
+              }
             } else {
               console.warn(`Application: no route from ${startNode} to ${destNode}`);
             }
@@ -291,6 +305,224 @@
       return best;
     }
 
+    /**
+     * Stage 7: Pre-populate ambulance's active corridor route with civilian traffic queues.
+     * Seeds vehicles on route edges ahead of ambulance position with deterministic spacing.
+     * Browser-only feature gated by prepopulateCorridor option.
+     * @param {Array<string>} routeEdgeIds - Ordered list of edge IDs on ambulance route
+     */
+    _prepopulateCorridorTraffic(routeEdgeIds) {
+      if (!this.sim || !this.sim.network || !routeEdgeIds || routeEdgeIds.length === 0) return;
+
+      const simNs = (typeof SimulationEngine !== 'undefined') ? SimulationEngine : null;
+      const SimVehicleCtor = (simNs && simNs.SimVehicle) ? simNs.SimVehicle : this.sim.constructor.SimVehicle;
+      const vehClasses = (simNs && simNs.VEHICLE_CLASSES) ? simNs.VEHICLE_CLASSES : (this.sim.vehicleClasses || {});
+      if (typeof SimVehicleCtor !== 'function') {
+        console.warn('[Application] SimVehicle constructor unavailable for corridor prepopulation');
+        return;
+      }
+
+      const random = this.sim.random;
+      const vehicleTypes = ['BMTC_BUS', 'AUTO_RICKSHAW', 'PASSENGER_CAR', 'TWO_WHEELER', 'AUTO_RICKSHAW', 'PASSENGER_CAR'];
+      const ambVeh = this.sim.vehicles.get(this._ambId);
+      const ambEdgeId = (ambVeh && ambVeh.edge) ? ambVeh.edge.id : routeEdgeIds[0];
+      const ambS = ambVeh ? ambVeh.s : 0;
+
+      let startIdx = routeEdgeIds.indexOf(ambEdgeId);
+      if (startIdx === -1) startIdx = 0;
+
+      // Focus on ambulance's current edge and next 3 route edges ahead so 12-20+ vehicles
+      // are immediately visible directly ahead of the ambulance.
+      const endIdx = Math.min(routeEdgeIds.length, startIdx + 4);
+      let vehiclesPlaced = 0;
+      const MAX_SPAWN_BATCH = 24;
+
+      for (let i = startIdx; i < endIdx && vehiclesPlaced < MAX_SPAWN_BATCH; i += 1) {
+        const edgeId = routeEdgeIds[i];
+        const edge = this.sim.network.getEdge(edgeId);
+        if (!edge || edge.length < 25) continue;
+
+        const lanes = edge.lanes || 2;
+        const isAmbulanceEdge = (edgeId === ambEdgeId);
+        const startS = isAmbulanceEdge ? Math.max(12, ambS + 18) : 10;
+        const maxS = Math.max(startS, (edge.stopLineOffsetM || (edge.length - 8)));
+        if (startS >= maxS - 6) continue;
+
+        for (let lane = 0; lane < lanes && vehiclesPlaced < MAX_SPAWN_BATCH; lane += 1) {
+          const queueKey = `${edgeId}|${lane}`;
+          const existingQueue = this.sim.laneQueues.get(queueKey);
+          const existingVehicles = existingQueue ? existingQueue.vehicles : [];
+
+          let candidateS = startS + (lane * 7);
+          while (candidateS < maxS - 4 && vehiclesPlaced < MAX_SPAWN_BATCH) {
+            const tooClose = existingVehicles.some(ev => Math.abs(ev.s - candidateS) < 11);
+            if (!tooClose) {
+              const typeIdx = (typeof random.nextInt === 'function')
+                ? random.nextInt(vehicleTypes.length)
+                : (vehiclesPlaced % vehicleTypes.length);
+              const vehType = vehicleTypes[typeIdx] || 'PASSENGER_CAR';
+              const vehCls = vehClasses[vehType] || vehClasses.PASSENGER_CAR;
+              if (!vehCls) break;
+              const randFrac = (typeof random.nextFloat === 'function') ? random.nextFloat() : 0.5;
+              const speedMps = 2.0 + randFrac * 4.0; // slow queued traffic 2-6 m/s
+
+              const vehId = `corr_civ_${edgeId}_${lane}_${vehiclesPlaced}_${Math.floor(this.sim.time * 10)}`;
+              const veh = new SimVehicleCtor(vehId, vehCls, edge, lane, candidateS, random);
+              veh.v = speedMps;
+              veh.targetV = Math.min(vehCls.idm ? vehCls.idm.v0 : 12, 11);
+
+              this.sim.vehicles.set(vehId, veh);
+              if (existingQueue) existingQueue.enqueue(veh);
+              vehiclesPlaced += 1;
+            }
+            const gapFrac = (typeof random.nextFloat === 'function') ? random.nextFloat() : 0.5;
+            candidateS += 14 + gapFrac * 8;
+          }
+        }
+      }
+
+      console.log(`[Application] Pre-populated corridor with ${vehiclesPlaced} civilian vehicles ahead on route`);
+    }
+
+    /**
+     * Stage 7: Collect and update AI Priority & Clearance Banner data.
+     * Called each frame from animate() when AI corridor is active.
+     */
+    _updateAIPriorityBannerData() {
+      const routingCtrl = this.routingController || (this.sim && this.sim.routingController);
+      const sigMgr = this.signals || this.signalManager;
+      if (!this.aiCorridorActive || !this.sim || !routingCtrl || !sigMgr) {
+        if (this.ui && typeof this.ui.updateAIPriorityBanner === 'function') {
+          this.ui.updateAIPriorityBanner({ isActive: false });
+        }
+        return;
+      }
+
+      const routeEdges = routingCtrl.currentRouteEdges || [];
+      if (routeEdges.length === 0) return;
+
+      const ambVeh = this.sim.vehicles.get(this._ambId);
+      if (!ambVeh || !ambVeh.edge) return;
+
+      const currentEdgeId = ambVeh.edge.id;
+      let currentIndex = routeEdges.indexOf(currentEdgeId);
+      if (currentIndex === -1) currentIndex = 0;
+
+      const speedMps = Math.max(5, ambVeh.v || 14);
+      let accumulatedDistance = 0;
+      let targetSignal = null;
+      let targetSignalObj = null;
+      let targetNodeId = null;
+      let targetDistance = 0;
+      let targetETA = 0;
+
+      // Helper to resolve signal at edge's downstream node
+      const findSignalAtEdgeEnd = (edge) => {
+        if (!edge) return null;
+        const toNodeId = edge.toNodeId || edge.to_node;
+        if (!toNodeId) return null;
+        let sig = sigMgr.getSignalByNode ? sigMgr.getSignalByNode(toNodeId) : null;
+        if (!sig) {
+          const toNode = this.sim.network.getNode(toNodeId);
+          if (toNode && Array.isArray(toNode.signals) && toNode.signals.length > 0) {
+            sig = sigMgr.getSignal(toNode.signals[0]);
+          }
+        }
+        return sig ? { sig, nodeId: toNodeId } : null;
+      };
+
+      // Check current edge first
+      const currentEdge = this.sim.network.getEdge(currentEdgeId);
+      if (currentEdge) {
+        accumulatedDistance = Math.max(0, currentEdge.length - ambVeh.s);
+        const found = findSignalAtEdgeEnd(currentEdge);
+        if (found) {
+          targetSignal = found.sig.id;
+          targetSignalObj = found.sig;
+          targetNodeId = found.nodeId;
+          targetDistance = accumulatedDistance;
+          targetETA = targetDistance / speedMps;
+        }
+      }
+
+      // Walk subsequent route edges until the next signalized junction
+      if (!targetSignal) {
+        for (let i = currentIndex + 1; i < routeEdges.length; i += 1) {
+          const edge = this.sim.network.getEdge(routeEdges[i]);
+          if (!edge) continue;
+          accumulatedDistance += (edge.length || 0);
+          const found = findSignalAtEdgeEnd(edge);
+          if (found) {
+            targetSignal = found.sig.id;
+            targetSignalObj = found.sig;
+            targetNodeId = found.nodeId;
+            targetDistance = accumulatedDistance;
+            targetETA = targetDistance / speedMps;
+            break;
+          }
+        }
+      }
+
+      // Compute civilian queue length ahead of ambulance along route up to target signal + target incoming edges
+      let queueLength = 0;
+      const aheadEdgeSet = new Set();
+      aheadEdgeSet.add(currentEdgeId);
+      for (let i = currentIndex; i < routeEdges.length; i += 1) {
+        const eId = routeEdges[i];
+        aheadEdgeSet.add(eId);
+        const edge = this.sim.network.getEdge(eId);
+        if (!edge) break;
+        const toNodeId = edge.toNodeId || edge.to_node;
+        if (targetNodeId && toNodeId === targetNodeId) break;
+      }
+      if (targetNodeId && typeof this.sim.network.getIncoming === 'function') {
+        const incEdges = this.sim.network.getIncoming(targetNodeId) || [];
+        for (const incEdgeId of incEdges) aheadEdgeSet.add(incEdgeId);
+      }
+      if (this.sim.vehicles) {
+        for (const v of this.sim.vehicles.values()) {
+          if (!v || !v.edge || v.id === this._ambId || (v.cls && v.cls.isEmergency)) continue;
+          if (!aheadEdgeSet.has(v.edge.id)) continue;
+          if (v.edge.id === currentEdgeId && v.s <= ambVeh.s) continue;
+          queueLength += 1;
+        }
+      }
+
+      const simMetrics = this.sim.getMetrics ? this.sim.getMetrics() : {};
+      const clearRate = simMetrics.routeClearRate || 0;
+
+      let subtitle = 'Tier-2 Preemption Engaged — Signal Clearance In Progress';
+      if (targetSignalObj) {
+        const rawPhase = targetSignalObj.currentPhase || 'RED';
+        const phaseLabel = rawPhase === 'PREEMPT_GREEN' ? 'GREEN WAVE' : rawPhase.replace('_', '-');
+        const junctionName = targetSignalObj.name || targetSignal;
+        if (rawPhase === 'PREEMPT_GREEN') {
+          subtitle = `${junctionName} [${phaseLabel}] — Corridor Cleared`;
+        } else if (rawPhase === 'GREEN' && targetSignalObj.isPreempted) {
+          subtitle = `${junctionName} [GREEN WAVE] — Priority Granted`;
+        } else if (targetSignalObj.isPreempted) {
+          subtitle = `${junctionName} [${phaseLabel}] — Preemption Clearing`;
+        } else {
+          subtitle = `${junctionName} [${phaseLabel}] — Tier-2 Horizon Armed`;
+        }
+      }
+
+      if (this.ui && typeof this.ui.updateAIPriorityBanner === 'function') {
+        this.ui.updateAIPriorityBanner({
+          isActive: true,
+          nextSignalDistance: targetDistance,
+          nextSignalEta: targetETA,
+          queueLength: queueLength,
+          clearRate: clearRate,
+          subtitle: subtitle
+        });
+      }
+
+      if (this.ui && typeof this.ui.setSpawnTrafficButtonVisible === 'function') {
+        this.ui.setSpawnTrafficButtonVisible(true);
+      }
+    }
+
     toggleAiCorridor() {
       this.aiCorridorActive = !this.aiCorridorActive;
 
@@ -327,6 +559,16 @@
       if (this.ambulance) {
         this.ambulance.priorityActive = this.aiCorridorActive;
         this.ambulance.autonomousCruisingSpeedKmh = this.aiCorridorActive ? 50.0 : 16.0;
+      }
+
+      // Stage 7: Hide banner and spawn button when corridor is disabled
+      if (!this.aiCorridorActive && this.ui) {
+        if (typeof this.ui.updateAIPriorityBanner === 'function') {
+          this.ui.updateAIPriorityBanner({ isActive: false });
+        }
+        if (typeof this.ui.setSpawnTrafficButtonVisible === 'function') {
+          this.ui.setSpawnTrafficButtonVisible(false);
+        }
       }
 
       return this.aiCorridorActive;
@@ -474,6 +716,11 @@
 
       if (this.benchmark) {
         this.benchmark.update(dt, this.ambulance, this.sim);
+      }
+
+      // Stage 7: Update AI Priority & Clearance Banner with live data
+      if (this.ui && typeof this.ui.updateAIPriorityBanner === 'function') {
+        this._updateAIPriorityBannerData();
       }
 
       if (this.ui) {

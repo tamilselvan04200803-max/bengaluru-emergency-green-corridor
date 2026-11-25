@@ -72,6 +72,11 @@
       this._lastRepaintAt = 0;
       this._ambientFleet = [];
       this._lastAmbientUpdateAt = 0;
+
+      // Stage 7: Corridor traffic queue & siren parting wave state
+      this._sirenPartingWaveActive = false;
+      this._partingWaveOffset = 1.8; // ±1.8m curb offset for siren yielding
+      this._greenWaveActiveEdges = new Set(); // Edge IDs with active Green Wave discharge
     }
 
     configure(options = {}) {
@@ -436,6 +441,12 @@
       const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now();
       this._stepAmbientFleet(nowMs);
 
+      // Stage 7: Update siren parting wave state
+      this._updateSirenPartingWave();
+
+      // Stage 7: Update Green Wave active edges for queue discharge visualization
+      this._updateGreenWaveEdges();
+
       const counts = {
         PASSENGER_CAR: 0,
         AUTO_RICKSHAW: 0,
@@ -471,9 +482,21 @@
       };
 
       // 1. Primary vehicles from deterministic SimulationEngine (includes amb_1 + network fleet)
+      // Prioritize emergency vehicle + corridor/nearby vehicles so the 250-instance cap
+      // never drops queued traffic directly ahead of the ambulance.
       let ambWorldX = null;
       let ambWorldZ = null;
+      let ambHeadingRad = 0;
+      const routeEdgeSet = new Set(
+        (this.sim && this.sim.routingController && Array.isArray(this.sim.routingController.currentRouteEdges))
+          ? this.sim.routingController.currentRouteEdges
+          : []
+      );
+
       if (this.sim && this.sim.vehicles) {
+        const priorityCivilians = [];
+        const backgroundCivilians = [];
+
         for (const veh of this.sim.vehicles.values()) {
           if (!veh || !veh.edge) continue;
           const sample = veh.edge.sampleAt(veh.s);
@@ -489,6 +512,7 @@
           if (veh.cls && veh.cls.isEmergency) {
             ambWorldX = wx;
             ambWorldZ = wz;
+            ambHeadingRad = sample.headingRad;
             if (this.ambulanceGroup) {
               const s = pos.scaleRatio * visualScale;
               this.ambulanceGroup.visible = true;
@@ -498,6 +522,41 @@
               ambPlaced = true;
             }
             continue;
+          }
+
+          const entry = { veh, sample, pos, wx, wz, perpX, perpZ };
+          if (routeEdgeSet.has(veh.edge.id)) {
+            priorityCivilians.push(entry);
+          } else {
+            backgroundCivilians.push(entry);
+          }
+        }
+
+        const orderedCivilians = priorityCivilians.concat(backgroundCivilians);
+        for (const entry of orderedCivilians) {
+          if (totalCivilianAdded >= MAX_FLEET_INSTANCES) break;
+          const { veh, sample, pos, perpX, perpZ } = entry;
+          let { wx, wz } = entry;
+
+          // Stage 7: Lateral curb parting (±1.8m) as ambulance approaches
+          if (ambWorldX !== null) {
+            const distToAmb = Math.hypot(wx - ambWorldX, wz - ambWorldZ);
+            if (distToAmb < 65) {
+              const waveIntensity = Math.max(0, 1 - distToAmb / 65);
+              const sideMultiplier = (veh.laneIndex % 2 === 0) ? -1 : 1;
+              const offsetM = (this._sirenPartingWaveActive ? this._partingWaveOffset : 1.4) * waveIntensity * sideMultiplier;
+              wx += perpX * offsetM;
+              wz += perpZ * offsetM;
+            }
+          }
+
+          // Stage 7: Queue discharge visual pulse on Green Wave edges near stop line
+          if (this._greenWaveActiveEdges.has(veh.edge.id)) {
+            const distToStopLine = Math.max(0, veh.edge.length - veh.s);
+            if (distToStopLine < 30 && veh.v > 1.0) {
+              wx += -perpZ * 0.6;
+              wz += perpX * 0.6;
+            }
           }
 
           const type = (veh.cls && veh.cls.id) ? veh.cls.id : 'PASSENGER_CAR';
@@ -517,12 +576,36 @@
         let wx = pos.x + perpX * laneOffsetM;
         let wz = pos.z + perpZ * laneOffsetM;
 
-        // Visual parting wave if near ambulance
-        if (ambWorldX !== null && Math.hypot(wx - ambWorldX, wz - ambWorldZ) < 45) {
+        // Stage 7: Siren lateral parting wave (±1.8m curb offset)
+        if (ambWorldX !== null && this._sirenPartingWaveActive) {
+          const distToAmb = Math.hypot(wx - ambWorldX, wz - ambWorldZ);
+          if (distToAmb < 60) { // Within 60m of ambulance
+            // Calculate lateral offset direction (perpendicular to road)
+            const latOffsetX = -perpZ; // Left perpendicular
+            const latOffsetZ = perpX;
+            // Alternate left/right based on lane for parting wave effect
+            const sideMultiplier = (v.lane % 2 === 0) ? -1 : 1;
+            const waveIntensity = Math.max(0, 1 - distToAmb / 60); // Fade with distance
+            const offset = this._partingWaveOffset * waveIntensity * sideMultiplier;
+            wx += latOffsetX * offset;
+            wz += latOffsetZ * offset;
+          }
+        } else if (ambWorldX !== null && Math.hypot(wx - ambWorldX, wz - ambWorldZ) < 45) {
+          // Legacy parting wave (non-siren) - smaller shift
           const shift = (v.lane % 2 === 0 ? -3.5 : 3.5);
           wx += perpX * shift;
           wz += perpZ * shift;
         }
+
+        // Stage 7: Queue discharge on Green Wave for ambient fleet too
+        if (this._greenWaveActiveEdges.has(v.edge.id)) {
+          const distToStopLine = Math.max(0, v.edge.length - v.s);
+          if (distToStopLine < 30) {
+            wx += perpX * Math.min(2.0, distToStopLine * 0.1);
+            wz += perpZ * Math.min(2.0, distToStopLine * 0.1);
+          }
+        }
+
         pushCivilian(v.type, wx, wz, sample.headingRad, pos.scaleRatio, v.id);
       }
 
@@ -557,6 +640,53 @@
         mesh.count = counts[type];
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
+    }
+
+    /**
+     * Stage 7: Update siren parting wave activation state.
+     * Activates when ambulance siren is ON and ambulance is moving.
+     */
+    _updateSirenPartingWave() {
+      if (this.ambulance && typeof this.ambulance.isSirenActive === 'function') {
+        this._sirenPartingWaveActive = this.ambulance.isSirenActive();
+      } else {
+        this._sirenPartingWaveActive = false;
+      }
+    }
+
+    /**
+     * Stage 7: Update set of edges with active Green Wave for queue discharge visualization.
+     * Checks signal phases on route edges - if signal is GREEN or PREEMPT_GREEN, vehicles discharge.
+     */
+    _updateGreenWaveEdges() {
+      this._greenWaveActiveEdges.clear();
+      if (!this.sim || !this.signalManager || !this.sim.routingController) return;
+
+      const routeEdges = this.sim.routingController.currentRouteEdges || [];
+      for (const edgeId of routeEdges) {
+        const edge = this.sim.network.getEdge(edgeId);
+        if (!edge) continue;
+
+        // Check signal at the downstream node of this edge
+        const toNodeId = edge.toNodeId || edge.to_node;
+        const sigByNode = (toNodeId && this.signalManager.getSignalByNode)
+          ? this.signalManager.getSignalByNode(toNodeId)
+          : null;
+        if (sigByNode && (sigByNode.currentPhase === 'GREEN' || sigByNode.currentPhase === 'PREEMPT_GREEN')) {
+          this._greenWaveActiveEdges.add(edgeId);
+          continue;
+        }
+        const toNode = toNodeId ? this.sim.network.getNode(toNodeId) : null;
+        if (toNode && toNode.signals && toNode.signals.length > 0) {
+          for (const signalId of toNode.signals) {
+            const signal = this.signalManager.getSignal(signalId);
+            if (signal && (signal.currentPhase === 'GREEN' || signal.currentPhase === 'PREEMPT_GREEN')) {
+              this._greenWaveActiveEdges.add(edgeId);
+              break;
+            }
+          }
+        }
       }
     }
 
